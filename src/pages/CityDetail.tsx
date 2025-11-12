@@ -1,114 +1,175 @@
-import React, { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { getAdminCities, City } from '../api/cities'
-import { getAdminSupportedLanguages, SupportedLanguage } from '../api/languages'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { getCityById, deleteCity } from '../api/cities'
+import { City } from '../types'
+import Card, { CardHeader } from '../components/Card'
+import Button from '../components/Button'
+import Badge from '../components/Badge'
+import Loading from '../components/Loading'
+import Alert from '../components/Alert'
+import { ConfirmModal } from '../components/Modal'
 
 export default function CityDetail() {
-  const { id } = useParams<{ id: string }>()
+  const { id } = useParams()
+  const navigate = useNavigate()
+  
   const [city, setCity] = useState<City | null>(null)
-  const [languages, setLanguages] = useState<SupportedLanguage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deleteModal, setDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    loadCityDetail()
+    if (id) loadCity(id)
   }, [id])
 
-  async function loadCityDetail() {
-    setLoading(true)
-    setError(null)
+  const loadCity = async (cityId: string) => {
     try {
-      // Fetch all cities and find the specific one
-      const citiesRes = await getAdminCities()
-      const responseData: any = citiesRes.data
-      const cities = responseData?.data || responseData || []
-      const foundCity = cities.find((c: City) => c.id === id)
-      
-      if (!foundCity) {
-        setError('City not found')
-        return
-      }
-      setCity(foundCity)
-
-      // Load languages
-      const langRes = await getAdminSupportedLanguages()
-      const langData: any = langRes.data
-      const langs = langData?.data || langData || []
-      setLanguages(Array.isArray(langs) ? langs : [])
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || 'Failed to load city details')
+      setLoading(true)
+      setError(null)
+      const data = await getCityById(cityId)
+      setCity(data)
+    } catch (err: any) {
+      setError(err.message || 'Error lors du chargement de la ville')
     } finally {
       setLoading(false)
     }
   }
 
-  if (loading) return <div className="p-6">Loading...</div>
-  if (error) return <div className="p-6 text-red-600">{error}</div>
-  if (!city) return <div className="p-6">City not found</div>
+  const handleDelete = async () => {
+    if (!id) return
+
+    try {
+      setDeleting(true)
+      await deleteCity(id)
+      navigate('/cities')
+    } catch (err: any) {
+      setError(err.message || 'Error lors de la suppression')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Card>
+          <Loading text="Chargement..." />
+        </Card>
+      </div>
+    )
+  }
+
+  if (error || !city) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Alert variant="danger">
+          {error || 'City introuvable'}
+        </Alert>
+        <div className="mt-4">
+          <Button onClick={() => navigate('/cities')}>Back to list</Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">City Details</h2>
-        <div className="flex gap-2">
-          <Link to={`/cities/${id}/edit`} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            Edit
-          </Link>
-          <Link to="/cities" className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
-            Back to List
-          </Link>
-        </div>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <Card>
+        <CardHeader
+          title="Details de la ville"
+          action={
+            <div className="flex items-center gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => navigate(`/cities/${id}/edit`)}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => setDeleteModal(true)}
+              >
+                Delete
+              </Button>
+            </div>
+          }
+        />
 
-      <div className="bg-white shadow rounded p-6 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-6">
+          {/* Status */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ID</label>
-            <p className="text-gray-900">{city.id}</p>
+            <label className="block text-sm font-medium text-gray-500 mb-2">Status</label>
+            {city.active ? (
+              <Badge variant="success" dot>
+                Active
+              </Badge>
+            ) : (
+              <Badge variant="secondary" dot>
+                Inactive
+              </Badge>
+            )}
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <span className={`px-3 py-1 text-sm rounded ${city.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-              {city.isActive ? 'Active' : 'Inactive'}
-            </span>
-          </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Name Translations</label>
-          <div className="grid grid-cols-2 gap-4">
-            {languages.map(lang => (
-              <div key={lang.code} className="border rounded p-3">
-                <label className="block text-xs font-medium text-gray-500 mb-1">{lang.name} ({lang.code})</label>
-                <p className="text-gray-900">{(city.nameTranslations as any)?.[lang.code] || '-'}</p>
+          {/* Translations */}
+          <div>
+            <label className="block text-sm font-medium text-gray-500 mb-3">Traductions</label>
+            <div className="space-y-3">
+              {Object.entries(city.nameTranslations).map(([lang, value]) => (
+                value && (
+                  <div key={lang} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
+                    <Badge variant="primary" size="sm">
+                      {lang.toUpperCase()}
+                    </Badge>
+                    <span className="text-gray-900 flex-1">{value}</span>
+                  </div>
+                )
+              ))}
+            </div>
+          </div>
+
+          {/* Audit info */}
+          {city.createdAt && (
+            <div className="pt-6 border-t border-gray-200 grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Créé le</label>
+                <p className="text-gray-900">{new Date(city.createdAt).toLocaleString('fr-FR')}</p>
+                {city.createdBy && (
+                  <p className="text-sm text-gray-500 mt-1">Par: {city.createdBy}</p>
+                )}
               </div>
-            ))}
-          </div>
+              {city.updatedAt && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Modifié le</label>
+                  <p className="text-gray-900">{new Date(city.updatedAt).toLocaleString('fr-FR')}</p>
+                  {city.updatedBy && (
+                    <p className="text-sm text-gray-500 mt-1">Par: {city.updatedBy}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Created At</label>
-            <p className="text-gray-900">{city.createdAt ? new Date(city.createdAt).toLocaleString() : '-'}</p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Updated At</label>
-            <p className="text-gray-900">{city.updatedAt ? new Date(city.updatedAt).toLocaleString() : '-'}</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Created By</label>
-            <p className="text-gray-900">{city.createdBy || '-'}</p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Updated By</label>
-            <p className="text-gray-900">{city.updatedBy || '-'}</p>
-          </div>
+        {/* Back button */}
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <Button variant="secondary" onClick={() => navigate('/cities')}>
+            Back to list
+          </Button>
         </div>
-      </div>
+      </Card>
+
+      <ConfirmModal
+        isOpen={deleteModal}
+        onClose={() => setDeleteModal(false)}
+        onConfirm={handleDelete}
+        title="Delete la ville"
+        message={`Are you sure de vouloir supprimer la ville "${city.nameTranslations.en}" ? Cette action est irréversible.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   )
 }

@@ -6,6 +6,132 @@ This guide provides the API schema and integration details for connecting a Reac
 
 ---
 
+## 🌍 Multi-Language Translation Support
+
+### General Rules for All Entities
+
+**During Creation (POST endpoints):**
+
+- ✅ **At least one supported language** is required
+- ✅ **Multiple languages** can be provided during creation
+- ✅ All provided language codes must be valid and supported
+- ✅ Translation values cannot be empty
+
+**Example - Single Language:**
+
+```json
+{
+  "nameTranslations": {
+    "en": "Casablanca"
+  }
+}
+```
+
+**Example - Multiple Languages:**
+
+```json
+{
+  "nameTranslations": {
+    "en": "Casablanca",
+    "ar": "الدار البيضاء",
+    "fr": "Casablanca",
+    "es": "Casablanca"
+  }
+}
+```
+
+**During Update (PUT endpoints):**
+
+- Can add new languages
+- Can update existing translations
+- Can provide partial updates (only languages you want to change)
+
+**Supported Languages:**
+
+- `en` - English
+- `ar` - Arabic
+- `fr` - French
+- `es` - Spanish
+- (Check `/api/v1/supported-languages` for full list)
+
+**Translation Response:**
+
+- GET endpoints return all supported languages
+- Missing translations appear as empty strings `""`
+
+---
+
+## ⚡ Entity Activation System
+
+### Activation Requirements
+
+Many entities in the system support an `active` field that controls whether they appear in public endpoints. To ensure data quality, **entities can only be activated when they have complete translations for all active languages**.
+
+### Entities with Activation Validation
+
+The following entities require complete translations before activation:
+
+| Entity            | Required Translation Fields      |
+| ----------------- | -------------------------------- |
+| **Cities**        | `name`                           |
+| **Contacts**      | `name`                           |
+| **Hotels**        | `name`, `description`            |
+| **Tourist Spots** | `name`, `description`, `address` |
+
+### Activation Rules
+
+1. **Default State**: All entities are created with `active: false` by default
+2. **Activation Requirement**: To set `active: true`, the entity must have translations for **ALL active languages** in all required fields
+3. **Validation Error**: Attempting to activate with incomplete translations returns:
+   ```json
+   {
+     "code": "400",
+     "error": true,
+     "message": "Entity cannot be activated. Missing translations: field[language], field[language]",
+     "data": null,
+     "metadata": null
+   }
+   ```
+4. **Deactivation**: Setting `active: false` can be done at any time without translation requirements
+
+### Typical Workflow
+
+1. **Create** entity with initial translations (e.g., only English)
+   - Entity is created with `active: false`
+2. **Add translations** for remaining active languages via UPDATE endpoint
+3. **Activate** entity by setting `active: true` once all translations are complete
+4. **Query** active entities using `?active=true` parameter in GET endpoints
+
+### Example: Activating a City
+
+```bash
+# Step 1: Create city with English only
+POST /api/v1/cities
+{
+  "nameTranslations": { "en": "Casablanca" }
+}
+# Response: active = false
+
+# Step 2: Add Arabic and French translations
+PUT /api/v1/cities/{id}
+{
+  "nameTranslations": {
+    "ar": "الدار البيضاء",
+    "fr": "Casablanca"
+  }
+}
+
+# Step 3: Activate the city
+PUT /api/v1/cities/{id}
+{
+  "active": true
+}
+# Success if all active languages have translations
+# Error if any active language is missing
+```
+
+---
+
 ## 🔐 Authentication
 
 ### Base URL
@@ -223,7 +349,7 @@ All endpoints require:
 **Query Parameters**:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `isActive` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
+| `active` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
 
 **Response Schema**:
 
@@ -240,7 +366,7 @@ All endpoints require:
         "ar": "string",
         "fr": "string"
       },
-      "isActive": boolean,
+      "active": boolean,
       "createdAt": "ISO-8601 datetime",
       "updatedAt": "ISO-8601 datetime",
       "createdBy": "string",
@@ -267,7 +393,7 @@ All endpoints require:
         "fr": "Casablanca",
         "es": ""
       },
-      "isActive": true,
+      "active": true,
       "createdAt": "2025-01-15T10:30:00",
       "updatedAt": "2025-11-08T14:20:00",
       "createdBy": "admin@example.com",
@@ -281,7 +407,7 @@ All endpoints require:
         "fr": "Marrakech",
         "es": ""
       },
-      "isActive": true,
+      "active": true,
       "createdAt": "2025-02-10T08:15:00",
       "updatedAt": "2025-02-10T08:15:00",
       "createdBy": "admin@example.com",
@@ -305,12 +431,11 @@ All endpoints require:
 ```json
 {
   "nameTranslations": {
-    "en": "string (required)",
-    "ar": "string (optional)",
-    "fr": "string (optional)",
-    "es": "string (optional)"
-  },
-  "isActive": boolean
+    "en": "string",
+    "ar": "string",
+    "fr": "string",
+    "es": "string"
+  }
 }
 ```
 
@@ -322,17 +447,19 @@ All endpoints require:
     "en": "Tangier",
     "ar": "طنجة",
     "fr": "Tanger"
-  },
-  "isActive": true
+  }
 }
 ```
 
 **Notes**:
 
-- Only provide translations for languages you want to set/update
-- You don't need to provide all supported languages
-- English (`en`) translation is required
+- **At least one supported language** is required
+- You can provide **multiple languages** during creation (en, ar, fr, es, etc.)
+- All provided language codes must be supported
 - Empty or missing translations will be returned as empty strings in GET responses
+- Additional languages can be added via UPDATE endpoint
+- **Cities are created with `active: false` by default**
+- To activate a city, you must first add translations for ALL active languages, then update with `active: true`
 
 **Response Schema**:
 
@@ -348,7 +475,7 @@ All endpoints require:
       "ar": "string",
       "fr": "string"
     },
-    "isActive": boolean,
+    "active": boolean,
     "createdAt": "ISO-8601 datetime",
     "updatedAt": "ISO-8601 datetime",
     "createdBy": "string",
@@ -373,7 +500,7 @@ All endpoints require:
       "fr": "Tanger",
       "es": "Tánger"
     },
-    "isActive": true,
+    "active": true,
     "createdAt": "2025-11-08T15:30:00",
     "updatedAt": "2025-11-08T15:30:00",
     "createdBy": "admin@example.com",
@@ -385,9 +512,10 @@ All endpoints require:
 
 **Validation Rules**:
 
-- At least one translation must be provided
+- At least one supported language translation is required
+- All provided language codes must be valid and supported
 - `nameTranslations` cannot be null or empty
-- Each translation value cannot exceed 100 characters
+- Each translation value cannot be empty
 
 ---
 
@@ -412,7 +540,7 @@ All endpoints require:
     "fr": "string (optional)",
     "es": "string (optional)"
   },
-  "isActive": boolean
+  "active": boolean
 }
 ```
 
@@ -424,7 +552,7 @@ All endpoints require:
     "ar": "الدار البيضاء المحدثة",
     "es": "Casablanca"
   },
-  "isActive": true
+  "active": true
 }
 ```
 
@@ -434,6 +562,14 @@ All endpoints require:
 - You can update individual language translations without sending all languages
 - To remove a translation, omit it from the request (it will remain unchanged)
 - Empty or missing translations will be returned as empty strings in GET responses
+
+**⚠️ Activation Validation**:
+
+- A city can only be activated (`active: true`) if it has **name translations for ALL active languages**
+- If you attempt to activate a city with incomplete translations, you'll receive a `400 Bad Request` error
+- The error will list which language translations are missing
+- Cities created with `active: false` (default) can be activated later once all required translations are added
+- Deactivation (`active: false`) can be done at any time without translation requirements
 
 **Response Schema**: Same as Create City response
 
@@ -452,7 +588,7 @@ All endpoints require:
       "fr": "Casablanca",
       "es": "Casablanca"
     },
-    "isActive": true,
+    "active": true,
     "createdAt": "2025-01-15T10:30:00",
     "updatedAt": "2025-11-08T16:45:00",
     "createdBy": "admin@example.com",
@@ -510,6 +646,44 @@ All endpoints require:
   "code": "400",
   "error": true,
   "message": "Validation error message",
+  "data": null,
+  "metadata": null
+}
+```
+
+**Common 400 Error Cases**:
+
+1. **Incomplete Translations for Activation**:
+
+```json
+{
+  "code": "400",
+  "error": true,
+  "message": "City cannot be activated. Missing translations: name[ar], name[fr]",
+  "data": null,
+  "metadata": null
+}
+```
+
+2. **Invalid Language Code**:
+
+```json
+{
+  "code": "400",
+  "error": true,
+  "message": "Unsupported language code provided",
+  "data": null,
+  "metadata": null
+}
+```
+
+3. **Missing Required Fields**:
+
+```json
+{
+  "code": "400",
+  "error": true,
+  "message": "At least one translation is required",
   "data": null,
   "metadata": null
 }
@@ -628,7 +802,7 @@ All endpoints require:
 **Query Parameters**:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `isActive` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
+| `active` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
 
 **Response Schema**:
 
@@ -642,7 +816,7 @@ All endpoints require:
       "id": "string",
       "code": "string",
       "name": "string",
-      "isActive": boolean
+      "active": boolean
     }
   ],
   "metadata": null
@@ -661,25 +835,25 @@ All endpoints require:
       "id": "lang-001",
       "code": "en",
       "name": "English",
-      "isActive": true
+      "active": true
     },
     {
       "id": "lang-002",
       "code": "ar",
       "name": "Arabic",
-      "isActive": true
+      "active": true
     },
     {
       "id": "lang-003",
       "code": "fr",
       "name": "French",
-      "isActive": true
+      "active": true
     },
     {
       "id": "lang-004",
       "code": "es",
       "name": "Spanish",
-      "isActive": false
+      "active": false
     }
   ],
   "metadata": null
@@ -689,7 +863,7 @@ All endpoints require:
 **Usage Notes**:
 
 - Use this endpoint to fetch available language codes when building translation forms
-- Typically, filter by `isActive=true` to show only active languages to users
+- Typically, filter by `active=true` to show only active languages to users
 - No authentication required - safe for public use
 
 ---
@@ -703,7 +877,7 @@ All endpoints require:
 **Query Parameters**:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `isActive` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
+| `active` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
 
 **Response Schema**:
 
@@ -717,7 +891,7 @@ All endpoints require:
       "id": "string",
       "code": "string",
       "name": "string",
-      "isActive": boolean,
+      "active": boolean,
       "createdAt": "ISO-8601 datetime",
       "updatedAt": "ISO-8601 datetime",
       "createdBy": "string",
@@ -740,7 +914,7 @@ All endpoints require:
       "id": "lang-001",
       "code": "en",
       "name": "English",
-      "isActive": true,
+      "active": true,
       "createdAt": "2025-01-01T00:00:00",
       "updatedAt": "2025-01-01T00:00:00",
       "createdBy": "admin@example.com",
@@ -750,7 +924,7 @@ All endpoints require:
       "id": "lang-002",
       "code": "ar",
       "name": "Arabic",
-      "isActive": true,
+      "active": true,
       "createdAt": "2025-01-01T00:00:00",
       "updatedAt": "2025-01-01T00:00:00",
       "createdBy": "admin@example.com",
@@ -775,7 +949,7 @@ All endpoints require:
 {
   "code": "string (required, ISO 639-1 code)",
   "name": "string (required)",
-  "isActive": boolean
+  "active": boolean
 }
 ```
 
@@ -785,7 +959,7 @@ All endpoints require:
 {
   "code": "de",
   "name": "German",
-  "isActive": true
+  "active": true
 }
 ```
 
@@ -800,7 +974,7 @@ All endpoints require:
     "id": "string",
     "code": "string",
     "name": "string",
-    "isActive": boolean,
+    "active": boolean,
     "createdAt": "ISO-8601 datetime",
     "updatedAt": "ISO-8601 datetime",
     "createdBy": "string",
@@ -821,7 +995,7 @@ All endpoints require:
     "id": "lang-005",
     "code": "de",
     "name": "German",
-    "isActive": true,
+    "active": true,
     "createdAt": "2025-11-09T10:00:00",
     "updatedAt": "2025-11-09T10:00:00",
     "createdBy": "admin@example.com",
@@ -856,7 +1030,7 @@ All endpoints require:
 {
   "code": "string (required)",
   "name": "string (required)",
-  "isActive": boolean
+  "active": boolean
 }
 ```
 
@@ -866,7 +1040,7 @@ All endpoints require:
 {
   "code": "en",
   "name": "English (US)",
-  "isActive": true
+  "active": true
 }
 ```
 
@@ -883,7 +1057,7 @@ All endpoints require:
     "id": "lang-001",
     "code": "en",
     "name": "English (US)",
-    "isActive": true,
+    "active": true,
     "createdAt": "2025-01-01T00:00:00",
     "updatedAt": "2025-11-09T11:30:00",
     "createdBy": "admin@example.com",
@@ -933,7 +1107,7 @@ All endpoints require:
 **Important Notes**:
 
 - Deleting a language will affect all entities using that language for translations
-- Consider setting `isActive=false` instead of deleting to preserve existing translations
+- Consider setting `active=false` instead of deleting to preserve existing translations
 
 ---
 
@@ -946,7 +1120,7 @@ All endpoints require:
 - [ ] Implement edit language form
 - [ ] Add delete language confirmation with warning about translation impact
 - [ ] Use language codes dynamically when building translation forms for other entities
-- [ ] Filter by `isActive=true` for user-facing forms
+- [ ] Filter by `active=true` for user-facing forms
 - [ ] Show all languages (including inactive) in admin language management
 - [ ] Display active/inactive status with visual indicators
 - [ ] Add loading states for all API calls
@@ -1265,7 +1439,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 **Query Parameters**:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `isActive` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
+| `active` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
 
 **Success Response**: `200 OK`
 
@@ -1284,7 +1458,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
       },
       "link": "mailto:support@example.com",
       "icon": "https://example.com/icons/email.png",
-      "isActive": true
+      "active": true
     }
   ],
   "metadata": null
@@ -1298,7 +1472,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 | `nameTranslations` | Object | Contact name in all supported languages (empty string if missing) |
 | `link` | String | Contact link (URL, email, phone) |
 | `icon` | String | Icon URL for the contact |
-| `isActive` | Boolean | Whether the contact is active |
+| `active` | Boolean | Whether the contact is active |
 
 ---
 
@@ -1311,7 +1485,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 **Query Parameters**:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `isActive` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
+| `active` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
 
 **Success Response**: `200 OK`
 
@@ -1330,7 +1504,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
       },
       "link": "mailto:support@example.com",
       "icon": "https://example.com/icons/email.png",
-      "isActive": true,
+      "active": true,
       "createdAt": "2025-11-08T15:30:00",
       "updatedAt": "2025-11-09T10:20:00",
       "createdBy": "admin@example.com",
@@ -1348,7 +1522,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 | `nameTranslations` | Object | Contact name in all supported languages (empty string if missing) |
 | `link` | String | Contact link (URL, email, phone) |
 | `icon` | String | Icon URL for the contact |
-| `isActive` | Boolean | Whether the contact is active |
+| `active` | Boolean | Whether the contact is active |
 | `createdAt` | LocalDateTime | Timestamp when created |
 | `updatedAt` | LocalDateTime | Timestamp when last updated |
 | `createdBy` | String | Email of user who created |
@@ -1373,7 +1547,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
   },
   "link": "mailto:support@example.com",
   "icon": "https://example.com/icons/email.png",
-  "isActive": true
+  "active": true
 }
 ```
 
@@ -1382,8 +1556,14 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 |-------|------|----------|-------------|
 | `nameTranslations` | Object | Yes | Contact name in multiple languages. At least one language required. |
 | `link` | String | Yes | Contact link (URL, email, phone) |
-| `icon` | String | No | Icon URL for the contact |
-| `isActive` | Boolean | No | Whether the contact is active (default: true) |
+| `icon` | String | Yes | Icon URL for the contact |
+| `active` | Boolean | No | Whether the contact is active (default: false) |
+
+**Notes**:
+
+- Contacts are created with `active: false` by default
+- To activate a contact, you must first add name translations for ALL active languages
+- Use the Update endpoint to add remaining translations and activate
 
 **Success Response**: `201 Created`
 
@@ -1401,7 +1581,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
     },
     "link": "mailto:support@example.com",
     "icon": "https://example.com/icons/email.png",
-    "isActive": true,
+    "active": true,
     "createdAt": "2025-11-09T15:30:00",
     "updatedAt": "2025-11-09T15:30:00",
     "createdBy": "admin@example.com",
@@ -1440,11 +1620,19 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
   },
   "link": "mailto:newsupport@example.com",
   "icon": "https://example.com/icons/new-email.png",
-  "isActive": false
+  "active": false
 }
 ```
 
 **Request Schema**: Same as Create Contact
+
+**⚠️ Activation Validation**:
+
+- A contact can only be activated (`active: true`) if it has **name translations for ALL active languages**
+- If you attempt to activate a contact with incomplete translations, you'll receive a `400 Bad Request` error
+- The error will list which language translations are missing
+- Contacts created with `active: false` (default) can be activated later once all required translations are added
+- Deactivation (`active: false`) can be done at any time without translation requirements
 
 **Success Response**: `200 OK`
 
@@ -1462,7 +1650,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
     },
     "link": "mailto:newsupport@example.com",
     "icon": "https://example.com/icons/new-email.png",
-    "isActive": false,
+    "active": false,
     "createdAt": "2025-11-08T15:30:00",
     "updatedAt": "2025-11-09T16:00:00",
     "createdBy": "admin@example.com",
@@ -1474,7 +1662,34 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 
 **Error Responses**:
 
-- `400 Bad Request`: Invalid request body
+- `400 Bad Request`: Invalid request body or incomplete translations when trying to activate
+
+**Common 400 Error Cases**:
+
+1. **Incomplete Translations for Activation**:
+
+```json
+{
+  "code": "400",
+  "error": true,
+  "message": "Contact cannot be activated. Missing translations: name[ar], name[es]",
+  "data": null,
+  "metadata": null
+}
+```
+
+2. **Missing Required Fields**:
+
+```json
+{
+  "code": "400",
+  "error": true,
+  "message": "Invalid request body",
+  "data": null,
+  "metadata": null
+}
+```
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `403 Forbidden`: User does not have ADMIN role
 - `404 Not Found`: Contact with specified ID not found
@@ -1534,8 +1749,8 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 
 5. **Active Status Filter**:
 
-   - `?isActive=true` - Returns only active contacts
-   - `?isActive=false` - Returns only inactive contacts
+   - `?active=true` - Returns only active contacts
+   - `?active=false` - Returns only inactive contacts
    - No parameter or `null` - Returns all contacts
 
 6. **Public vs Admin Endpoints**:
@@ -1570,7 +1785,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 **Query Parameters**:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `isActive` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
+| `active` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
 
 **Success Response**: `200 OK`
 
@@ -1602,12 +1817,12 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
       "images": [
         {
           "url": "https://example.com/hotel1.jpg",
-          "alt": "Hotel exterior"
+          "owner": "Hotel exterior"
         }
       ],
       "minPrice": 150.0,
       "likesCount": 245,
-      "isActive": true,
+      "active": true,
       "isLikedByUser": false,
       "isBookmarkedByUser": false,
       "rating": 4.5,
@@ -1626,10 +1841,10 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 | `descriptionTranslations` | Object | Hotel description in all supported languages (empty string if missing) |
 | `cityId` | String | ID of the city where the hotel is located |
 | `location` | Object | GPS coordinates (latitude, longitude) |
-| `images` | Array | List of hotel images with URL and alt text |
+| `images` | Array | List of hotel images with URL and owner text |
 | `minPrice` | Double | Minimum room price |
 | `likesCount` | Integer | Number of likes |
-| `isActive` | Boolean | Whether the hotel is active |
+| `active` | Boolean | Whether the hotel is active |
 | `isLikedByUser` | Boolean | Whether current user liked this hotel (always false for public endpoint) |
 | `isBookmarkedByUser` | Boolean | Whether current user bookmarked this hotel (always false for public endpoint) |
 | `rating` | Double | Average rating from approved reviews (0.0 if no reviews) |
@@ -1646,7 +1861,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 **Query Parameters**:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `isActive` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
+| `active` | Boolean | No | Filter by active status. `true` = active only, `false` = inactive only, `null/omitted` = all |
 
 **Success Response**: `200 OK`
 
@@ -1678,12 +1893,12 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
       "images": [
         {
           "url": "https://example.com/hotel1.jpg",
-          "alt": "Hotel exterior"
+          "owner": "Hotel exterior"
         }
       ],
       "minPrice": 150.0,
       "likesCount": 245,
-      "isActive": true,
+      "active": true,
       "rating": 4.5,
       "ratingCount": 120,
       "createdAt": "2025-11-08T15:30:00",
@@ -1710,17 +1925,21 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 
 **Endpoint**: `POST /api/v1/hotels`  
 **Auth**: Required (ADMIN)  
-**Description**: Create a new hotel with translations (only English required during creation)
+**Description**: Create a new hotel with translations (at least one supported language required)
 
 **Request Body**:
 
 ```json
 {
   "nameTranslations": {
-    "en": "Grand Hotel"
+    "en": "Grand Hotel",
+    "ar": "فندق جراند",
+    "fr": "Grand Hôtel"
   },
   "descriptionTranslations": {
-    "en": "Luxury hotel in the heart of the city"
+    "en": "Luxury hotel in the heart of the city",
+    "ar": "فندق فاخر في قلب المدينة",
+    "fr": "Hôtel de luxe au cœur de la ville"
   },
   "cityId": "city123",
   "location": {
@@ -1730,7 +1949,8 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
   "images": [
     {
       "url": "https://example.com/hotel1.jpg",
-      "alt": "Hotel exterior"
+      "ownerId": "user123",
+      "ownerType": "ADMIN"
     }
   ],
   "minPrice": 150.0
@@ -1740,12 +1960,12 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 **Request Schema**:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `nameTranslations` | Object | Yes | Hotel name (only `en` required) |
-| `descriptionTranslations` | Object | Yes | Hotel description (only `en` required) |
+| `nameTranslations` | Object | Yes | Hotel name (at least one supported language) |
+| `descriptionTranslations` | Object | Yes | Hotel description (at least one supported language) |
 | `cityId` | String | Yes | ID of the city |
 | `location` | Object | Yes | GPS coordinates with latitude and longitude |
-| `images` | Array | No | List of images (url and alt text) |
-| `minPrice` | Double | No | Minimum room price |
+| `images` | Array | Yes | List of images (at least one required) |
+| `minPrice` | Double | Yes | Minimum room price |
 
 **Success Response**: `201 Created`
 
@@ -1776,12 +1996,12 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
     "images": [
       {
         "url": "https://example.com/hotel1.jpg",
-        "alt": "Hotel exterior"
+        "owner": "Hotel exterior"
       }
     ],
     "minPrice": 150.0,
     "likesCount": 0,
-    "isActive": false,
+    "active": false,
     "rating": 0.0,
     "ratingCount": 0,
     "createdAt": "2025-11-09T10:00:00",
@@ -1802,7 +2022,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 
 **Notes**:
 
-- Hotels are created as **inactive by default** (`isActive: false`)
+- Hotels are created as **inactive by default** (`active: false`)
 - Only English (`en`) translation is required during creation
 - Other languages can be added later via PUT endpoint
 - Rating is 0.0 initially (no reviews yet)
@@ -1840,11 +2060,11 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
   "images": [
     {
       "url": "https://example.com/hotel-new.jpg",
-      "alt": "New hotel image"
+      "owner": "New hotel image"
     }
   ],
   "minPrice": 200.0,
-  "isActive": true
+  "active": true
 }
 ```
 
@@ -1857,7 +2077,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 | `location` | Object | Update GPS coordinates |
 | `images` | Array | Update images (replaces existing) |
 | `minPrice` | Double | Update minimum price |
-| `isActive` | Boolean | Activate/deactivate hotel (requires all language translations to be complete) |
+| `active` | Boolean | Activate/deactivate hotel (requires all language translations to be complete) |
 
 **Success Response**: `200 OK`
 
@@ -1888,12 +2108,12 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
     "images": [
       {
         "url": "https://example.com/hotel-new.jpg",
-        "alt": "New hotel image"
+        "owner": "New hotel image"
       }
     ],
     "minPrice": 200.0,
     "likesCount": 245,
-    "isActive": true,
+    "active": true,
     "rating": 4.5,
     "ratingCount": 120,
     "createdAt": "2025-11-08T15:30:00",
@@ -1928,7 +2148,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 
 3. **Activation Rules**:
 
-   - Hotels are created as **inactive** (`isActive: false`) by default
+   - Hotels are created as **inactive** (`active: false`) by default
    - To activate a hotel, ALL supported languages must have translations for both name and description
    - If translations are incomplete, activation will fail with error code `INCOMPLETE_TRANSLATIONS`
 
@@ -1936,7 +2156,7 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 
 5. **Images**:
 
-   - Array of objects with `url` and `alt` fields
+   - Array of objects with `url` and `owner` fields
    - URLs should be publicly accessible
    - When updating, the entire images array is replaced
 
@@ -1954,13 +2174,61 @@ curl -X DELETE "http://localhost:8080/api/v1/images?imageUrl=/uploads/public/act
 
 8. **Active Status Filter**:
 
-   - `?isActive=true` - Returns only active hotels
-   - `?isActive=false` - Returns only inactive hotels
+   - `?active=true` - Returns only active hotels
+   - `?active=false` - Returns only inactive hotels
    - No parameter or `null` - Returns all hotels
 
 9. **Public vs Admin Endpoints**:
    - Public endpoint (`GET /`) - No authentication, includes user interaction fields (isLikedByUser, isBookmarkedByUser)
    - Admin endpoint (`GET /admin`) - Requires authentication, includes all audit fields but no user interaction fields
+
+### Additional Hotel Endpoints
+
+#### Like/Unlike Hotel
+
+**Endpoint**: `POST /api/v1/hotels/{hotelId}/like?isLike={boolean}`  
+**Auth**: Required (USER role)  
+**Description**: Like or unlike a hotel
+
+**Path Parameters**:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hotelId` | String | Yes | Hotel ID |
+
+**Query Parameters**:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `isLike` | Boolean | Yes | `true` to like, `false` to unlike |
+
+**Example Request**:
+
+```
+POST /api/v1/hotels/hotel-123/like?isLike=true
+```
+
+**Success Response**: `200 OK`
+
+```json
+{
+  "code": "200",
+  "error": false,
+  "message": "Hotel liked successfully",
+  "data": null
+}
+```
+
+**Error Responses**:
+
+- `401 UNAUTHORIZED` - Not authenticated
+- `403 FORBIDDEN` - Not USER role
+- `404 NOT FOUND` - Hotel not found
+
+**Notes**:
+
+- Requires USER role authentication
+- Unlike message: "Hotel unliked successfully"
+- Likes count is included in hotel response DTOs
+- Like status persists per user
 
 ---
 
@@ -2101,7 +2369,7 @@ All endpoints require:
    - `description` - Detailed description
    - `address` - Physical address (for tourist spots)
 
-3. **Language Codes**: Must be valid supported language codes. Fetch available languages from `GET /api/v1/supported-languages?isActive=true`
+3. **Language Codes**: Must be valid supported language codes. Fetch available languages from `GET /api/v1/supported-languages?active=true`
 
 4. **Partial Updates**: When using `PUT /api/v1/translations/entity/{entityType}/{entityId}/field/{fieldName}`, you can include only the languages you want to update. Other existing translations will remain unchanged.
 
@@ -2119,6 +2387,103 @@ All endpoints require:
    - Fix or modify existing translations
 
 8. **Direct Translation Management**: The translations feature is primarily for admin oversight and bulk operations. Individual entity endpoints (cities, hotels, activities, etc.) handle their own translations during create/update operations.
+
+---
+
+## 👤 Activity User Profile Management
+
+### Base URL
+
+```
+/api/v1/activity/profile
+```
+
+### Authentication
+
+- Requires `Authorization: Bearer {JWT_TOKEN}` with `ACTIVITY` role
+
+---
+
+### Endpoints
+
+#### Complete or Update Activity Profile
+
+**Endpoint**: `PUT /api/v1/activity/profile`  
+**Auth**: Required (ACTIVITY role)  
+**Description**: Complete or update the profile for an activity user (organization banner, title, description)
+
+**Request Body**:
+
+```json
+{
+  "title": "Adventure Tours Morocco",
+  "description": "Professional adventure tour operator specializing in desert safaris and mountain trekking",
+  "imageUrl": "https://storage.example.com/profiles/adventure-tours-banner.jpg"
+}
+```
+
+**Field Validation**:
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | String | Yes | Organization/business name shown on profile |
+| `description` | String | Yes | Short bio or summary for the profile |
+| `imageUrl` | String | Yes | Cover/banner image URL for the profile |
+
+**Success Response**: `200 OK`
+
+```json
+{
+  "code": "200",
+  "error": false,
+  "message": "Activity user profile updated successfully",
+  "data": {
+    "profileType": "ACTIVITY",
+    "title": "Adventure Tours Morocco",
+    "description": "Professional adventure tour operator specializing in desert safaris and mountain trekking",
+    "imageUrl": "https://storage.example.com/profiles/adventure-tours-banner.jpg"
+  }
+}
+```
+
+**Error Responses**:
+
+- `400 BAD REQUEST` - Invalid request body or missing required fields
+- `401 UNAUTHORIZED` - Not authenticated
+- `403 FORBIDDEN` - Not ACTIVITY role
+
+---
+
+### Usage Notes
+
+1. **Profile Purpose**:
+
+   - Activity profile is the public-facing banner for activity users
+   - Displayed when users view activities grouped by provider
+   - Shows organization name, description, and banner image
+
+2. **Image Upload**:
+
+   - Upload banner image first using `POST /api/v1/images/upload?subdirectory=activity-profiles`
+   - Get the returned `imageUrl`
+   - Use that URL in this profile update request
+
+3. **Profile Updates**:
+
+   - Can be updated multiple times
+   - All fields are required on each update
+   - Changes reflect immediately in public activity listings
+
+4. **Default Profile**:
+
+   - New ACTIVITY users start without a profile
+   - System falls back to user's `fullName` and `profilePicture` if profile incomplete
+   - Completing profile improves professional appearance
+
+5. **Public Visibility**:
+   - Profile data appears in:
+     - `GET /api/v1/activities` (public listings)
+     - `GET /api/v1/activities/admin` (admin view)
+   - Profile shown above all activities from this user
 
 ---
 
@@ -2280,15 +2645,10 @@ All endpoints require:
         "ar": "string",
         "fr": "string"
       },
-      "cityNameTranslations": {
-        "en": "string",
-        "ar": "string",
-        "fr": "string"
-      },
+      "cityId": "string",
       "imageData": [
         {
           "url": "string",
-          "altText": "string",
           "owner": "string"
         }
       ],
@@ -2339,16 +2699,10 @@ All endpoints require:
         "fr": "Boulevard de la Corniche",
         "es": ""
       },
-      "cityNameTranslations": {
-        "en": "Casablanca",
-        "ar": "الدار البيضاء",
-        "fr": "Casablanca",
-        "es": ""
-      },
+      "cityId": "city-123",
       "imageData": [
         {
           "url": "https://storage.example.com/spots/hassan-mosque.jpg",
-          "altText": "Hassan II Mosque exterior view",
           "owner": "admin@example.com"
         }
       ],
@@ -2390,7 +2744,7 @@ All endpoints require:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `cityId` | String | No | Filter by city ID |
-| `isActive` | Boolean | No | Filter by active status |
+| `active` | Boolean | No | Filter by active status |
 
 **Response Schema**:
 
@@ -2419,18 +2773,10 @@ All endpoints require:
       "images": [
         {
           "url": "string",
-          "altText": "string",
           "owner": "string"
         }
       ],
-      "city": {
-        "id": "string",
-        "nameTranslations": {
-          "en": "string",
-          "ar": "string"
-        },
-        "isActive": boolean
-      },
+      "cityId": "string",
       "addressTranslations": {
         "en": "string",
         "ar": "string",
@@ -2440,7 +2786,7 @@ All endpoints require:
       "likes": number,
       "openingTime": "HH:mm:ss",
       "closingTime": "HH:mm:ss",
-      "isActive": boolean,
+      "active": boolean,
       "suggestedBy": "string",
       "createdAt": "ISO-8601 datetime",
       "updatedAt": "ISO-8601 datetime",
@@ -2481,20 +2827,10 @@ All endpoints require:
       "images": [
         {
           "url": "https://storage.example.com/spots/hassan-mosque.jpg",
-          "altText": "Hassan II Mosque",
           "owner": "admin@example.com"
         }
       ],
-      "city": {
-        "id": "city-123",
-        "nameTranslations": {
-          "en": "Casablanca",
-          "ar": "الدار البيضاء",
-          "fr": "Casablanca",
-          "es": ""
-        },
-        "isActive": true
-      },
+      "cityId": "city-123",
       "addressTranslations": {
         "en": "Boulevard de la Corniche",
         "ar": "شارع الكورنيش",
@@ -2505,7 +2841,7 @@ All endpoints require:
       "likes": 1247,
       "openingTime": "09:00:00",
       "closingTime": "18:00:00",
-      "isActive": true,
+      "active": true,
       "suggestedBy": "AJIAPP",
       "createdAt": "2025-01-20T10:30:00",
       "updatedAt": "2025-11-09T14:20:00",
@@ -2522,20 +2858,25 @@ All endpoints require:
 
 **Endpoint**: `POST /api/v1/tourist-spots`  
 **Auth**: Required (ADMIN)  
-**Description**: Create a new tourist spot with English translations only. Additional translations can be added via update.
+**Description**: Create a new tourist spot with translations in any supported languages (minimum one language required).
 
 **Request Body**:
 
 ```json
 {
   "nameTranslations": {
-    "en": "string (required)"
+    "en": "string",
+    "ar": "string",
+    "fr": "string"
   },
   "descriptionTranslations": {
-    "en": "string (required)"
+    "en": "string",
+    "ar": "string",
+    "fr": "string"
   },
   "addressTranslations": {
-    "en": "string (optional)"
+    "en": "string (optional)",
+    "ar": "string (optional)"
   },
   "location": {
     "latitude": number,
@@ -2544,14 +2885,14 @@ All endpoints require:
   "images": [
     {
       "url": "string",
-      "altText": "string",
-      "owner": "string"
+      "ownerId": "string",
+      "ownerType": "string"
     }
   ],
   "cityId": "string (required)",
   "isPaidEntry": boolean,
-  "openingTime": "HH:mm:ss (optional)",
-  "closingTime": "HH:mm:ss (optional)",
+  "openingTime": "HH:mm (optional)",
+  "closingTime": "HH:mm (optional)",
   "suggestedBy": "string (optional, defaults to 'AJIAPP')"
 }
 ```
@@ -2561,13 +2902,19 @@ All endpoints require:
 ```json
 {
   "nameTranslations": {
-    "en": "Jardin Majorelle"
+    "en": "Jardin Majorelle",
+    "ar": "حديقة ماجوريل",
+    "fr": "Jardin Majorelle"
   },
   "descriptionTranslations": {
-    "en": "Botanical garden and artist's landscape garden"
+    "en": "Botanical garden and artist's landscape garden",
+    "ar": "حديقة نباتية وحديقة المناظر الطبيعية",
+    "fr": "Jardin botanique et jardin paysager"
   },
   "addressTranslations": {
-    "en": "Rue Yves Saint Laurent, Marrakech"
+    "en": "Rue Yves Saint Laurent, Marrakech",
+    "ar": "شارع إيف سان لوران، مراكش",
+    "fr": "Rue Yves Saint Laurent, Marrakech"
   },
   "location": {
     "latitude": 31.6416,
@@ -2576,14 +2923,14 @@ All endpoints require:
   "images": [
     {
       "url": "https://storage.example.com/spots/majorelle.jpg",
-      "altText": "Jardin Majorelle entrance",
-      "owner": "admin@example.com"
+      "ownerId": "admin-123",
+      "ownerType": "ADMIN"
     }
   ],
   "cityId": "city-456",
   "isPaidEntry": true,
-  "openingTime": "08:00:00",
-  "closingTime": "18:00:00",
+  "openingTime": "08:00",
+  "closingTime": "18:00",
   "suggestedBy": "AJIAPP"
 }
 ```
@@ -2592,12 +2939,12 @@ All endpoints require:
 
 **Validation Rules**:
 
-- Only English (`en`) translations are allowed at creation
-- `nameTranslations.en` is required
-- `descriptionTranslations.en` is required
+- At least one supported language translation is required for name and description
+- All provided language codes must be valid and supported
 - `cityId` must reference an existing city
 - Location coordinates must be valid (latitude: -90 to 90, longitude: -180 to 180)
-- Tourist spot is created with `isActive: false`
+- Tourist spot is created with `active: false` (must be activated by admin)
+- Additional languages can be added/updated via PUT endpoint
 
 ---
 
@@ -2635,7 +2982,6 @@ All endpoints require:
   "images": [
     {
       "url": "string",
-      "altText": "string",
       "owner": "string"
     }
   ],
@@ -2643,7 +2989,7 @@ All endpoints require:
   "isPaidEntry": boolean,
   "openingTime": "HH:mm:ss",
   "closingTime": "HH:mm:ss",
-  "isActive": boolean,
+  "active": boolean,
   "suggestedBy": "string"
 }
 ```
@@ -2672,7 +3018,7 @@ All endpoints require:
 **Validation Rules**:
 
 - Translation keys must be supported languages only
-- If attempting to set `isActive: true`, all required translations must be complete (name, description, address for all active languages)
+- If attempting to set `active: true`, all required translations must be complete (name, description, address for all active languages)
 - Location coordinates must be valid if provided
 - Partial updates are supported (only include fields to update)
 
@@ -2749,7 +3095,7 @@ POST /api/v1/tourist-spots/spot-123/like?isLike=true
 
 2. **Activation Rules**:
 
-   - Tourist spots are created inactive (`isActive: false`)
+   - Tourist spots are created inactive (`active: false`)
    - To activate, must have complete translations for: name, description, address
    - All active languages must have these translations
 
@@ -2766,7 +3112,7 @@ POST /api/v1/tourist-spots/spot-123/like?isLike=true
 
 5. **Images**:
 
-   - Array of image objects with URL, alt text, and owner
+   - Array of image objects with URL, owner text, and owner
    - No built-in upload handling (URLs only)
 
 6. **Rating System**:
@@ -2782,13 +3128,513 @@ POST /api/v1/tourist-spots/spot-123/like?isLike=true
 
 ---
 
-## 📋 Next Features
+## ⭐ Reviews Management
 
-_To be documented in upcoming sections:_
+### Base URL
 
-- **Stadiums Management**
-- **Reviews Management**
-- **User Management**
+```
+/api/v1/reviews
+```
+
+### Authentication
+
+- **Public Endpoints**: `GET /api/v1/reviews` (Get reviews for entity)
+- **User Endpoints**: `POST`, `PUT`, `DELETE` require authentication
+- **Admin Endpoints**: `GET /api/v1/reviews/all`, `PUT /{reviewId}/status` require `ADMIN` role
+
+---
+
+### Endpoints
+
+#### 1. Create Review
+
+**Endpoint**: `POST /api/v1/reviews`  
+**Auth**: Required (Any authenticated user)  
+**Description**: Create a new review for an entity (tourist spot, hotel, activity, etc.)
+
+**Request Body**:
+
+```json
+{
+  "message": "Amazing place! The architecture is breathtaking and the sunset view is unforgettable.",
+  "rating": 5,
+  "entityType": "spot",
+  "entityId": "spot-123"
+}
+```
+
+**Request Fields**:
+| Field | Type | Required | Validation | Description |
+|-------|------|----------|------------|-------------|
+| `message` | String | Yes | Max 600 characters | Review message/comment |
+| `rating` | Integer | Yes | 1-5 | Star rating |
+| `entityType` | String | Yes | Not blank | Entity type: "spot", "hotel", "activity", etc. |
+| `entityId` | String | Yes | Not blank | ID of the entity being reviewed |
+
+**Success Response**: `201 CREATED`
+
+```json
+{
+  "code": "201",
+  "error": false,
+  "message": "Review created successfully",
+  "data": {
+    "id": "review-123",
+    "message": "Amazing place! The architecture is breathtaking and the sunset view is unforgettable.",
+    "rating": 5,
+    "date": "2025-11-12T14:30:00",
+    "status": "PENDING",
+    "entityType": "spot",
+    "entityId": "spot-123",
+    "rejectionReason": null,
+    "approvedAt": null,
+    "userName": "John Doe",
+    "userProfilePicture": "https://storage.example.com/users/john.jpg"
+  }
+}
+```
+
+**Error Responses**:
+
+- `409 CONFLICT` - User already reviewed this entity
+- `401 UNAUTHORIZED` - Not authenticated
+- `404 NOT FOUND` - User not found
+
+**Notes**:
+
+- Review status defaults to `PENDING`
+- One user can only review each entity once
+- User information (name, profile picture) is included in response
+
+---
+
+#### 2. Get Reviews for Entity
+
+**Endpoint**: `GET /api/v1/reviews?entityType={type}&entityId={id}&status={status}`  
+**Auth**: None (Public)  
+**Description**: Get all reviews for a specific entity with statistics
+
+**Query Parameters**:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entityType` | String | Yes | Entity type: "spot", "hotel", "activity", etc. |
+| `entityId` | String | Yes | Entity ID |
+| `status` | String | No | Filter by status: "PENDING", "APPROVED", "REJECTED". Omit for all statuses |
+
+**Example Request**:
+
+```
+GET /api/v1/reviews?entityType=spot&entityId=spot-123&status=APPROVED
+```
+
+**Success Response**: `200 OK`
+
+```json
+{
+  "code": "200",
+  "error": false,
+  "message": "Reviews retrieved successfully",
+  "data": {
+    "reviews": [
+      {
+        "id": "review-123",
+        "message": "Amazing place! The architecture is breathtaking.",
+        "rating": 5,
+        "date": "2025-11-12T14:30:00",
+        "status": "APPROVED",
+        "entityType": "spot",
+        "entityId": "spot-123",
+        "rejectionReason": null,
+        "approvedAt": "2025-11-12T15:00:00",
+        "userName": "John Doe",
+        "userProfilePicture": "https://storage.example.com/users/john.jpg"
+      },
+      {
+        "id": "review-124",
+        "message": "Beautiful spot but very crowded.",
+        "rating": 4,
+        "date": "2025-11-11T10:20:00",
+        "status": "APPROVED",
+        "entityType": "spot",
+        "entityId": "spot-123",
+        "rejectionReason": null,
+        "approvedAt": "2025-11-11T11:00:00",
+        "userName": "Jane Smith",
+        "userProfilePicture": null
+      }
+    ],
+    "stats": {
+      "averageRating": 4.5,
+      "totalCount": 5,
+      "approvedCount": 2,
+      "pendingCount": 2,
+      "rejectedCount": 1
+    }
+  }
+}
+```
+
+**Response Fields**:
+
+**Review Object**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | String | Review ID |
+| `message` | String | Review message |
+| `rating` | Integer | Star rating (1-5) |
+| `date` | LocalDateTime | Review creation date |
+| `status` | String | "PENDING", "APPROVED", "REJECTED", "DELETED" |
+| `entityType` | String | Type of reviewed entity |
+| `entityId` | String | ID of reviewed entity |
+| `rejectionReason` | String | Reason for rejection (null if not rejected) |
+| `approvedAt` | LocalDateTime | Approval/rejection timestamp (null if pending) |
+| `userName` | String | Reviewer's full name |
+| `userProfilePicture` | String | Reviewer's profile picture URL (null if not set) |
+
+**Stats Object**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `averageRating` | Double | Average rating from approved reviews only (0.0 if none) |
+| `totalCount` | Long | Total number of reviews (all statuses) |
+| `approvedCount` | Long | Number of approved reviews |
+| `pendingCount` | Long | Number of pending reviews |
+| `rejectedCount` | Long | Number of rejected reviews |
+
+---
+
+#### 3. Get All Reviews (Admin)
+
+**Endpoint**: `GET /api/v1/reviews/all?status={status}`  
+**Auth**: Required (ADMIN)  
+**Description**: Get all reviews across all entities (admin view)
+
+**Query Parameters**:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | String | No | Filter by status: "PENDING", "APPROVED", "REJECTED". Omit for all |
+
+**Example Request**:
+
+```
+GET /api/v1/reviews/all?status=PENDING
+```
+
+**Success Response**: `200 OK`
+
+```json
+{
+  "code": "200",
+  "error": false,
+  "message": "All reviews retrieved successfully",
+  "data": [
+    {
+      "id": "review-125",
+      "message": "Great hotel with excellent service!",
+      "rating": 5,
+      "date": "2025-11-12T16:00:00",
+      "status": "PENDING",
+      "entityType": "hotel",
+      "entityId": "hotel-456",
+      "rejectionReason": null,
+      "approvedAt": null,
+      "userName": "Sarah Johnson",
+      "userProfilePicture": "https://storage.example.com/users/sarah.jpg"
+    },
+    {
+      "id": "review-126",
+      "message": "Nice spot for families.",
+      "rating": 4,
+      "date": "2025-11-12T15:30:00",
+      "status": "PENDING",
+      "entityType": "spot",
+      "entityId": "spot-789",
+      "rejectionReason": null,
+      "approvedAt": null,
+      "userName": "Mike Brown",
+      "userProfilePicture": null
+    }
+  ]
+}
+```
+
+**Notes**:
+
+- Returns reviews from all entities
+- Useful for moderation dashboard
+- Can filter by status to show pending reviews needing approval
+
+---
+
+#### 4. Update Review
+
+**Endpoint**: `PUT /api/v1/reviews/{reviewId}`  
+**Auth**: Required (Review owner only)  
+**Description**: Update review message and rating
+
+**Path Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `reviewId` | String | Review ID |
+
+**Request Body**:
+
+```json
+{
+  "message": "Updated review: Still amazing, visited again and loved it even more!",
+  "rating": 5
+}
+```
+
+**Request Fields**:
+| Field | Type | Required | Validation | Description |
+|-------|------|----------|------------|-------------|
+| `message` | String | Yes | Max 600 characters | Updated review message |
+| `rating` | Integer | Yes | 1-5 | Updated star rating |
+
+**Success Response**: `200 OK`
+
+```json
+{
+  "code": "200",
+  "error": false,
+  "message": "Review updated successfully",
+  "data": {
+    "id": "review-123",
+    "message": "Updated review: Still amazing, visited again and loved it even more!",
+    "rating": 5,
+    "date": "2025-11-12T14:30:00",
+    "status": "PENDING",
+    "entityType": "spot",
+    "entityId": "spot-123",
+    "rejectionReason": null,
+    "approvedAt": null,
+    "userName": "John Doe",
+    "userProfilePicture": "https://storage.example.com/users/john.jpg"
+  }
+}
+```
+
+**Error Responses**:
+
+- `401 UNAUTHORIZED` - Not authenticated or not review owner
+- `404 NOT FOUND` - Review not found
+- `401 UNAUTHORIZED` - Cannot update deleted review
+
+**Notes**:
+
+- Only the review owner can update their review
+- Status resets to `PENDING` when review is updated
+- Approval fields (`approvedBy`, `approvedAt`, `rejectionReason`) are cleared
+
+---
+
+#### 5. Update Review Status (Admin)
+
+**Endpoint**: `PUT /api/v1/reviews/{reviewId}/status`  
+**Auth**: Required (ADMIN)  
+**Description**: Approve or reject a review
+
+**Path Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `reviewId` | String | Review ID |
+
+**Request Body - Approve**:
+
+```json
+{
+  "status": "APPROVED"
+}
+```
+
+**Request Body - Reject**:
+
+```json
+{
+  "status": "REJECTED",
+  "rejectionReason": "Contains inappropriate content"
+}
+```
+
+**Request Fields**:
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | String | Yes | "APPROVED", "REJECTED", "PENDING", "DELETED" |
+| `rejectionReason` | String | Required for REJECTED | Reason for rejection |
+
+**Success Response**: `200 OK`
+
+```json
+{
+  "code": "200",
+  "error": false,
+  "message": "Review status updated successfully",
+  "data": {
+    "id": "review-123",
+    "message": "Amazing place! The architecture is breathtaking.",
+    "rating": 5,
+    "date": "2025-11-12T14:30:00",
+    "status": "APPROVED",
+    "entityType": "spot",
+    "entityId": "spot-123",
+    "rejectionReason": null,
+    "approvedAt": "2025-11-12T17:00:00",
+    "userName": "John Doe",
+    "userProfilePicture": "https://storage.example.com/users/john.jpg"
+  }
+}
+```
+
+**Error Responses**:
+
+- `400 BAD REQUEST` - Rejection reason required when rejecting
+- `403 FORBIDDEN` - Not admin
+- `404 NOT FOUND` - Review not found
+
+**Notes**:
+
+- Sets `approvedBy` to admin user ID
+- Sets `approvedAt` timestamp
+- `rejectionReason` is required when status is `REJECTED`
+- Clearing rejection: set status to `APPROVED` or `PENDING`
+
+---
+
+#### 6. Delete Review
+
+**Endpoint**: `DELETE /api/v1/reviews/{reviewId}`  
+**Auth**: Required (Review owner only)  
+**Description**: Delete a review (soft delete)
+
+**Path Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `reviewId` | String | Review ID |
+
+**Success Response**: `200 OK`
+
+```json
+{
+  "code": "200",
+  "error": false,
+  "message": "Review deleted successfully",
+  "data": null
+}
+```
+
+**Error Responses**:
+
+- `401 UNAUTHORIZED` - Not authenticated or not review owner
+- `404 NOT FOUND` - Review not found
+
+**Notes**:
+
+- Only the review owner can delete their review
+- Deletion removes the review from database (hard delete)
+
+---
+
+### Review Status Workflow
+
+```
+┌──────────┐
+│ PENDING  │ ← Default status when created
+└────┬─────┘
+     │
+     ├──→ APPROVED (by admin)
+     │
+     ├──→ REJECTED (by admin, requires reason)
+     │
+     └──→ DELETED (by owner or admin)
+
+When review is updated by owner:
+APPROVED/REJECTED → PENDING (reset to pending)
+```
+
+---
+
+### Usage Notes
+
+1. **One Review Per Entity**:
+
+   - Each user can only create one review per entity
+   - Attempting to create duplicate returns `409 CONFLICT`
+
+2. **Review Moderation**:
+
+   - All reviews default to `PENDING` status
+   - Admin must approve/reject reviews
+   - Approved reviews appear in statistics and public ratings
+
+3. **Statistics Calculation**:
+
+   - `averageRating` calculated from `APPROVED` reviews only
+   - All counts include respective status totals
+   - Statistics update automatically when review status changes
+
+4. **User Information**:
+
+   - `userName` and `userProfilePicture` dynamically fetched from User entity
+   - Shows "Unknown User" if user deleted
+   - Profile picture can be null
+
+5. **Entity Types**:
+
+   - Supported: `"spot"` (tourist spot), `"hotel"`, `"activity"`, etc.
+   - Entity type and ID must match existing entities
+   - No foreign key validation (flexible design)
+
+6. **Updating Reviews**:
+
+   - When user updates their review, status resets to `PENDING`
+   - Requires re-approval by admin
+   - Previous approval data is cleared
+
+7. **Rejection Reasons**:
+
+   - Required when setting status to `REJECTED`
+   - Helps users understand why review was rejected
+   - Can be null for other statuses
+
+8. **Public Access**:
+
+   - GET endpoints are public (no authentication required)
+   - Allows displaying reviews to all visitors
+   - POST/PUT/DELETE require authentication
+
+9. **Admin Management**:
+
+   - `GET /all` shows all reviews across entities
+   - Useful for moderation dashboard
+   - Filter by `PENDING` to see reviews needing approval
+
+10. **Rating System**:
+    - 1-5 star rating (integer)
+    - Average calculated with 2 decimal precision
+    - Ratings only from approved reviews affect entity rating
+
+---
+
+## 📋 Planned Features
+
+_The following features are planned but not yet implemented:_
+
+- **Stadiums Management** - Endpoints for stadium information
+- **Visas Management** - Visa requirements and information
+- **Features/Discover** - Content discovery and featured items
+- **User Management** - Admin endpoints to manage user accounts (list, view, update, delete users)
+
+_Note: Security configuration whitelists GET requests to `/api/v1/visas/**`, `/api/v1/features/**`, and `/api/v1/discover/**`, but these endpoints are not yet implemented._
+
+---
+
+## 📝 Recently Added Features
+
+The following features were recently documented:
+
+- **Activity User Profile Management** (November 2025) - Complete/update activity user profiles
+- **Hotel Like/Unlike** (November 2025) - Like functionality for hotels
+- **Reviews Management** (November 2025) - Full review system with admin moderation
 
 ---
 
@@ -2821,4 +3667,4 @@ _Not yet implemented_
    - POST/PUT requests only need to include translations being created/updated
    - Missing translations in responses are represented as empty strings (`""`)
    - There is no default language concept; all languages are equal
-8. **Supported Languages**: Fetch the list of supported languages using `GET /api/v1/supported-languages?isActive=true` to know which language codes are available for translation forms
+8. **Supported Languages**: Fetch the list of supported languages using `GET /api/v1/supported-languages?active=true` to know which language codes are available for translation forms

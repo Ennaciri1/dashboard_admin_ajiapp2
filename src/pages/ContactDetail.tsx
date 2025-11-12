@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getAdminContacts, Contact } from '../api/contacts'
-import { getAdminSupportedLanguages, SupportedLanguage } from '../api/languages'
+import { getSupportedLanguages, SupportedLanguage } from '../api/languages'
 
 export default function ContactDetail() {
   const { id } = useParams<{ id: string }>()
@@ -29,10 +29,9 @@ export default function ContactDetail() {
       }
       setContact(foundContact)
 
-      const langRes = await getAdminSupportedLanguages()
-      const langData: any = langRes.data
-      const langs = langData?.data || langData || []
-      setLanguages(Array.isArray(langs) ? langs : [])
+      const langRes = await getSupportedLanguages(true)
+      const langs = Array.isArray(langRes) ? langRes : (langRes.data || [])
+      setLanguages(langs)
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message || 'Failed to load contact details')
     } finally {
@@ -67,8 +66,8 @@ export default function ContactDetail() {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <span className={`px-3 py-1 text-sm rounded ${contact.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-              {contact.isActive ? 'Active' : 'Inactive'}
+            <span className={`px-3 py-1 text-sm rounded ${contact.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+              {contact.active ? 'Active' : 'Inactive'}
             </span>
           </div>
         </div>

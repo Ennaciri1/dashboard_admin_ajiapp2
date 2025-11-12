@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getAdminActivities, Activity, ActivityUser } from '../api/activities'
-import { getAdminSupportedLanguages, SupportedLanguage } from '../api/languages'
+import { getSupportedLanguages, SupportedLanguage } from '../api/languages'
 import { getImageUrl } from '../lib/imageUtils'
 
 export default function ActivityDetail() {
@@ -21,8 +21,8 @@ export default function ActivityDetail() {
     setError(null)
     try {
       const activitiesRes = await getAdminActivities()
-      const responseData: any = activitiesRes.data
-      const activityUsers = responseData?.data || responseData || []
+      // getAdminActivities already extracts data, returns array directly
+      const activityUsers = Array.isArray(activitiesRes) ? activitiesRes : []
       
       let foundActivity: Activity | null = null
       let foundUser: ActivityUser | null = null
@@ -43,10 +43,9 @@ export default function ActivityDetail() {
       setActivity(foundActivity)
       setActivityUser(foundUser)
 
-      const langRes = await getAdminSupportedLanguages()
-      const langData: any = langRes.data
-      const langs = langData?.data || langData || []
-      setLanguages(Array.isArray(langs) ? langs : [])
+      const langRes = await getSupportedLanguages(true)
+      const langs = Array.isArray(langRes) ? langRes : (langRes.data || [])
+      setLanguages(langs)
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message || 'Failed to load activity details')
     } finally {
@@ -86,8 +85,8 @@ export default function ActivityDetail() {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <span className={`px-3 py-1 text-sm rounded ${activity.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-              {activity.isActive ? 'Active' : 'Inactive'}
+            <span className={`px-3 py-1 text-sm rounded ${activity.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+              {activity.active ? 'Active' : 'Inactive'}
             </span>
           </div>
 

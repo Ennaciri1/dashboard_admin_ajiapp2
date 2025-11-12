@@ -8,6 +8,7 @@ import { EditIcon, PlusIcon } from '../assets/icons'
 import { getImageUrl } from '../lib/utils'
 import FormSection from '../components/FormSection'
 import FormActionsBar from '../components/FormActionsBar'
+import MapPicker from '../components/MapPicker'
 
 export default function HotelForm(){
   const { id } = useParams()
@@ -24,7 +25,7 @@ export default function HotelForm(){
   const [minPrice, setMinPrice] = useState('')
   const [images, setImages] = useState<HotelImage[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [isActive, setIsActive] = useState(false)
+  const [active, setactive] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -42,12 +43,20 @@ export default function HotelForm(){
       const res = await getSupportedLanguages(true)
       // getSupportedLanguages returns axios.data; normalize to array regardless of envelope
       const responseData: any = res
-      const langs: SupportedLanguage[] = Array.isArray(responseData?.data)
+      const allLangs: SupportedLanguage[] = Array.isArray(responseData?.data)
         ? responseData.data
         : (Array.isArray(responseData) ? responseData : [])
-      setLanguages(langs)
+      
+      // ✅ Filter to only show ACTIVE languages
+      const activeLangs = allLangs.filter(lang => lang.active)
+      
+      console.log('📋 All languages:', allLangs.length)
+      console.log('✅ Active languages:', activeLangs.length, activeLangs.map(l => l.code))
+      
+      setLanguages(activeLangs)
+      
       const initial: Record<string, string> = {}
-      langs.forEach((l: SupportedLanguage) => initial[l.code] = '')
+      activeLangs.forEach((l: SupportedLanguage) => initial[l.code] = '')
       setNameTranslations(initial)
       setDescTranslations({...initial})
     } catch (e: any) {
@@ -72,7 +81,8 @@ export default function HotelForm(){
   async function loadHotel(){
     try {
       const res = await getAdminHotels()
-      const hotels = res.data || []
+      // getAdminHotels returns array directly
+      const hotels = Array.isArray(res) ? res : (res.data || [])
       const hotel = hotels.find((h: any) => h.id === id)
       if (hotel) {
         // Merge with existing translations to ensure all language codes have values
@@ -86,7 +96,7 @@ export default function HotelForm(){
         setMinPrice(hotel.minPrice?.toString() || '')
         // Normalize images to ensure owner/altText present (keeps inputs controlled)
         setImages((hotel.images || []).map((img: any) => ({ ...img, owner: img?.owner ?? '', altText: img?.altText ?? '' })))
-        setIsActive(hotel.isActive)
+        setactive(hotel.active)
       }
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message)
@@ -163,8 +173,15 @@ export default function HotelForm(){
       if (descTranslations[code]?.trim()) desc[code] = descTranslations[code].trim()
     })
 
-    if (!name.en || !desc.en) {
-      setError('English translations for name and description are required')
+    // ✅ Vérifier qu'at least one langue active a une traduction
+    if (Object.keys(name).length === 0) {
+      setError('Au moins une traduction du nom is required')
+      setLoading(false)
+      return
+    }
+
+    if (Object.keys(desc).length === 0) {
+      setError('Au moins une traduction de la description is required')
       setLoading(false)
       return
     }
@@ -190,9 +207,10 @@ export default function HotelForm(){
         cityId,
         location: { latitude: lat, longitude: lng }
       }
+
       if (minPrice) payload.minPrice = parseFloat(minPrice)
       if (images.length > 0) payload.images = images
-      if (isEdit) payload.isActive = isActive
+      if (isEdit) payload.active = active
       
       if (isEdit && id) {
         await updateHotel(id, payload)
@@ -219,6 +237,24 @@ export default function HotelForm(){
       ) : (
       <form onSubmit={handleSubmit} className="max-w-4xl">
         <div className="space-y-6">
+          {!isEdit && (
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-blue-700">
+                    <strong>Lors de la création</strong>, at least one traduction is required. 
+                    Les autres langues sont optionnelles mais peuvent être ajoutées maintenant ou plus tard.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <FormSection title="Name Translations" description="Provide the hotel name in available languages. English is required.">
             {languages.map(lang => (
               <div key={`name-${lang.code}`}>
@@ -236,7 +272,7 @@ export default function HotelForm(){
             ))}
           </FormSection>
 
-          <FormSection title="Description Translations" description="Short description. English is required; others can be added later.">
+          <FormSection title="Description Translations" description="Short description. English is required; others are optional.">
             {languages.map(lang => (
               <div key={`desc-${lang.code}`}>
                 <label className="block text-sm font-medium mb-1">
@@ -261,14 +297,45 @@ export default function HotelForm(){
                 {cities.map(c => <option key={c.id} value={String(c.id)}>{c.nameTranslations.en}</option>)}
               </select>
             </div>
+
+                {/* Carte interactive avec recherche intégrée */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Emplacement sur la carte</label>
+                  <MapPicker
+                    latitude={parseFloat(latitude) || 33.9716}
+                    longitude={parseFloat(longitude) || -6.8498}
+                    onLocationChange={(lat, lng) => {
+                      setLatitude(lat.toString())
+                      setLongitude(lng.toString())
+                    }}
+                  />
+                </div>
+
+            {/* Affichage des coordonnées */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Latitude <span className="text-red-600">*</span></label>
-                <input type="number" step="any" className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-[#97051D]/20" value={latitude} onChange={e=>setLatitude(e.target.value)} required />
+                <input 
+                  type="number" 
+                  step="any" 
+                  className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-500/20 bg-gray-50" 
+                  value={latitude} 
+                  onChange={e => setLatitude(e.target.value)} 
+                  required 
+                  readOnly
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Longitude <span className="text-red-600">*</span></label>
-                <input type="number" step="any" className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-[#97051D]/20" value={longitude} onChange={e=>setLongitude(e.target.value)} required />
+                <input 
+                  type="number" 
+                  step="any" 
+                  className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-500/20 bg-gray-50" 
+                  value={longitude} 
+                  onChange={e => setLongitude(e.target.value)} 
+                  required 
+                  readOnly
+                />
               </div>
             </div>
             <div>
@@ -278,8 +345,8 @@ export default function HotelForm(){
             </div>
             {isEdit && (
               <div className="flex items-center">
-                <input type="checkbox" id="isActive" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="mr-2" />
-                <label htmlFor="isActive" className="text-sm">Active (requires all translations to be complete)</label>
+                <input type="checkbox" id="active" checked={active} onChange={e => setactive(e.target.checked)} className="mr-2" />
+                <label htmlFor="active" className="text-sm">Active (requires all translations to be complete)</label>
               </div>
             )}
           </FormSection>

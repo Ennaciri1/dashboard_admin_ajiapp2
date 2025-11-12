@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { getAdminSupportedLanguages, SupportedLanguage } from '../api/languages'
+import { TableSkeleton } from '../components/Loading'
+import Alert from '../components/Alert'
+import Button from '../components/Button'
+import Badge from '../components/Badge'
 
 export default function LanguageDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [language, setLanguage] = useState<SupportedLanguage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -17,84 +22,148 @@ export default function LanguageDetail() {
     setError(null)
     try {
       const langRes = await getAdminSupportedLanguages()
-      const responseData: any = langRes.data
-      const languages = responseData?.data || responseData || []
+      // getAdminSupportedLanguages returns array directly
+      const languages = Array.isArray(langRes) ? langRes : []
       const foundLanguage = languages.find((l: SupportedLanguage) => l.id === id)
       
       if (!foundLanguage) {
-        setError('Language not found')
+        setError('Language non trouvée')
         return
       }
       setLanguage(foundLanguage)
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || 'Failed to load language details')
+      setError(e?.response?.data?.message || e.message || 'Failed du chargement de la langue')
     } finally {
       setLoading(false)
     }
   }
 
-  if (loading) return <div className="p-6">Loading...</div>
-  if (error) return <div className="p-6 text-red-600">{error}</div>
-  if (!language) return <div className="p-6">Language not found</div>
+  if (loading) return <TableSkeleton />
+  if (error) return (
+    <div className="px-8 py-6">
+      <h2 className="text-2xl font-semibold mb-4">Details de la langue</h2>
+      <Alert variant="danger">{error}</Alert>
+      <Button onClick={() => navigate('/languages')} className="mt-4">
+        Back
+      </Button>
+    </div>
+  )
+  if (!language) return (
+    <div className="px-8 py-6">
+      <h2 className="text-2xl font-semibold mb-4">Details de la langue</h2>
+      <Alert variant="warning">Language non trouvée</Alert>
+      <Button onClick={() => navigate('/languages')} className="mt-4">
+        Back
+      </Button>
+    </div>
+  )
 
   return (
-    <div className="p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Language Details</h2>
-        <div className="flex gap-2">
-          <Link to={`/languages/${id}/edit`} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            Edit
-          </Link>
-          <Link to="/languages" className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
-            Back to List
-          </Link>
-        </div>
+    <div className="px-8 py-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold text-gray-900">Details de la langue</h2>
+        <p className="text-gray-600 mt-1">Informations complètes sur la langue</p>
       </div>
 
-      <div className="bg-white shadow rounded p-6 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ID</label>
-            <p className="text-gray-900">{language.id}</p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <span className={`px-3 py-1 text-sm rounded ${language.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-              {language.isActive ? 'Active' : 'Inactive'}
-            </span>
-          </div>
+      {/* Actions */}
+      <div className="mb-6 flex gap-4">
+        <Button onClick={() => navigate(`/languages/${id}/edit`)}>
+          Edit
+        </Button>
+        <Button onClick={() => navigate('/languages')} variant="secondary">
+          Back
+        </Button>
+      </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Code</label>
-            <p className="text-gray-900 font-mono">{language.code}</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <p className="text-gray-900">{language.name}</p>
+      {/* Content */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        {/* Header avec gradient */}
+        <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">
+              {language.name} ({language.code})
+            </h3>
+            <Badge variant={language.active ? 'success' : 'secondary'}>
+              {language.active ? 'Active' : 'Inactive'}
+            </Badge>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Created At</label>
-            <p className="text-gray-900">{language.createdAt ? new Date(language.createdAt).toLocaleString() : '-'}</p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Updated At</label>
-            <p className="text-gray-900">{language.updatedAt ? new Date(language.updatedAt).toLocaleString() : '-'}</p>
+        <div className="p-6">
+          {/* Informations principales */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <div className="text-sm text-gray-500 mb-1">ID</div>
+              <div className="font-mono text-sm text-gray-900">{language.id}</div>
+            </div>
+            
+            <div>
+              <div className="text-sm text-gray-500 mb-1">Code de langue</div>
+              <div className="font-mono text-lg font-semibold text-gray-900">
+                {language.code.toUpperCase()}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm text-gray-500 mb-1">Name de la langue</div>
+              <div className="text-gray-900">{language.name}</div>
+            </div>
+
+            <div>
+              <div className="text-sm text-gray-500 mb-1">Status</div>
+              <Badge variant={language.active ? 'success' : 'secondary'} size="md">
+                {language.active ? 'Active' : 'Inactive'}
+              </Badge>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Created By</label>
-            <p className="text-gray-900">{language.createdBy || '-'}</p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Updated By</label>
-            <p className="text-gray-900">{language.updatedBy || '-'}</p>
+          {/* Métadonnées */}
+          <div className="pt-6 border-t border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-900 mb-4">Métadonnées</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <div className="text-sm text-gray-500 mb-1">Créé le</div>
+                <div className="text-sm text-gray-900">
+                  {language.createdAt 
+                    ? new Date(language.createdAt).toLocaleDateString('fr-FR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : '-'
+                  }
+                </div>
+              </div>
+              
+              <div>
+                <div className="text-sm text-gray-500 mb-1">Modifié le</div>
+                <div className="text-sm text-gray-900">
+                  {language.updatedAt 
+                    ? new Date(language.updatedAt).toLocaleDateString('fr-FR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : '-'
+                  }
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm text-gray-500 mb-1">Créé par</div>
+                <div className="text-sm text-gray-900">{language.createdBy || '-'}</div>
+              </div>
+              
+              <div>
+                <div className="text-sm text-gray-500 mb-1">Modifié par</div>
+                <div className="text-sm text-gray-900">{language.updatedBy || '-'}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -22,8 +22,8 @@ export default function TouristSpotDetail() {
     setError(null)
     try {
       const spotsRes = await getAdminTouristSpots()
-      const responseData: any = spotsRes.data
-      const spots = Array.isArray(responseData?.data) ? responseData.data : (Array.isArray(responseData) ? responseData : [])
+      // getAdminTouristSpots already extracts data, returns array directly
+      const spots = Array.isArray(spotsRes) ? spotsRes : []
       const foundSpot = spots.find((s: TouristSpot) => s.id === id)
       
       if (!foundSpot) {
@@ -85,8 +85,8 @@ export default function TouristSpotDetail() {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <span className={`px-3 py-1 text-sm rounded ${spot.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-              {spot.isActive ? 'Active' : 'Inactive'}
+            <span className={`px-3 py-1 text-sm rounded ${spot.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+              {spot.active ? 'Active' : 'Inactive'}
             </span>
           </div>
 

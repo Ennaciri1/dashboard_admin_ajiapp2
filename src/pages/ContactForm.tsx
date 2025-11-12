@@ -12,7 +12,7 @@ export default function ContactForm(){
   const [translations, setTranslations] = useState<Record<string, string>>({})
   const [link, setLink] = useState('')
   const [icon, setIcon] = useState('')
-  const [isActive, setIsActive] = useState(true)
+  const [active, setactive] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -24,10 +24,16 @@ export default function ContactForm(){
   async function loadLanguages(){
     try {
       const res = await getSupportedLanguages(true)
-      const langs = res.data || []
-      setLanguages(langs)
+      // getSupportedLanguages returns array directly
+      const allLangs = Array.isArray(res) ? res : (res.data || [])
+      
+      // ✅ Filter to only show ACTIVE languages
+      const activeLangs = allLangs.filter((lang: SupportedLanguage) => lang.active)
+      console.log('✅ Active languages in ContactForm:', activeLangs.map(l => l.code))
+      
+      setLanguages(activeLangs)
       const initial: Record<string, string> = {}
-      langs.forEach((l: SupportedLanguage) => initial[l.code] = '')
+      activeLangs.forEach((l: SupportedLanguage) => initial[l.code] = '')
       setTranslations(initial)
     } catch (e: any) {
       console.error('Failed to load languages', e)
@@ -37,13 +43,14 @@ export default function ContactForm(){
   async function loadContact(){
     try {
       const res = await getAdminContacts()
-      const contacts = res.data || []
+      // getAdminContacts returns array directly
+      const contacts = Array.isArray(res) ? res : (res.data || [])
       const contact = contacts.find((c: any) => c.id === id)
       if (contact) {
         setTranslations(contact.nameTranslations || {})
         setLink(contact.link || '')
         setIcon(contact.icon || '')
-        setIsActive(contact.isActive)
+        setactive(contact.active)
       }
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message)
@@ -60,15 +67,28 @@ export default function ContactForm(){
       if (translations[code]?.trim()) nameTranslations[code] = translations[code].trim()
     })
 
-    if (!nameTranslations.en) {
-      setError('English translation is required')
+    // ✅ Vérifier qu'at least one langue active a une traduction
+    if (Object.keys(nameTranslations).length === 0) {
+      setError('Au moins une traduction du nom is required')
+      setLoading(false)
+      return
+    }
+
+    if (!link?.trim()) {
+      setError('Link is required')
       setLoading(false)
       return
     }
 
     try {
-      const payload: any = { nameTranslations, link, isActive }
-      if (icon.trim()) payload.icon = icon.trim()
+      const payload: any = { 
+        nameTranslations, 
+        link: link.trim(), 
+        icon: icon?.trim() || undefined,  // Envoyer icon seulement si fourni, sinon undefined
+        active 
+      }
+      
+      console.log('📤 Submitting contact payload:', JSON.stringify(payload, null, 2))
       
       if (isEdit && id) {
         await updateContact(id, payload)
@@ -77,7 +97,22 @@ export default function ContactForm(){
       }
       nav('/contacts')
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || 'Failed to save contact')
+      console.error('❌ Contact submission error:', e)
+      console.error('Response data:', e?.response?.data)
+      console.error('Validation errors:', JSON.stringify(e?.response?.data?.data, null, 2))
+      
+      const errorData = e?.response?.data?.data
+      let errorMessage = e?.response?.data?.message || e.message || 'Failed to save contact'
+      
+      // Si des erreurs de validation spécifiques existent
+      if (errorData && typeof errorData === 'object') {
+        const validationErrors = Object.entries(errorData)
+          .map(([field, msg]) => `${field}: ${msg}`)
+          .join(', ')
+        errorMessage = `${errorMessage} - ${validationErrors}`
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -107,15 +142,32 @@ export default function ContactForm(){
           ))}
           <div>
             <label className="block text-sm font-medium mb-1">Link (URL/Email/Phone) <span className="text-red-600">*</span></label>
-            <input type="text" className="w-full border px-3 py-2 rounded" value={link} onChange={e=>setLink(e.target.value)} required />
+            <input 
+              type="text" 
+              className="w-full border px-3 py-2 rounded" 
+              value={link} 
+              onChange={e=>setLink(e.target.value)} 
+              placeholder="https://example.com or email@example.com or +123456789"
+              required 
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Format libre: URL, email, téléphone, ou autre lien
+            </p>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Icon URL</label>
-            <input type="text" className="w-full border px-3 py-2 rounded" value={icon} onChange={e=>setIcon(e.target.value)} placeholder="https://example.com/icon.png" />
+            <label className="block text-sm font-medium mb-1">Icon URL (Optionnel)</label>
+            <input 
+              type="text" 
+              className="w-full border px-3 py-2 rounded" 
+              value={icon} 
+              onChange={e=>setIcon(e.target.value)} 
+              placeholder="https://example.com/icon.png"
+            />
+            <p className="text-xs text-gray-500 mt-1">Laisser vide si vous n'avez pas d'icône</p>
           </div>
           <div className="flex items-center">
-            <input type="checkbox" id="isActive" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="mr-2" />
-            <label htmlFor="isActive" className="text-sm">Active</label>
+            <input type="checkbox" id="active" checked={active} onChange={e => setactive(e.target.checked)} className="mr-2" />
+            <label htmlFor="active" className="text-sm">Active</label>
           </div>
         </div>
         <div className="mt-6 flex gap-2">

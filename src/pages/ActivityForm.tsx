@@ -14,7 +14,7 @@ export default function ActivityForm(){
   const [price, setPrice] = useState('')
   const [tags, setTags] = useState('')
   const [images, setImages] = useState('')
-  const [isActive, setIsActive] = useState(false)
+  const [active, setactive] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,7 +52,7 @@ export default function ActivityForm(){
         setPrice(activity.price?.toString() || '')
         setTags(activity.tags?.join(', ') || '')
         setImages(activity.images?.join(', ') || '')
-        setIsActive(activity.isActive)
+        setactive(activity.active)
       }
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message)
@@ -88,7 +88,7 @@ export default function ActivityForm(){
       }
       if (tags) payload.tags = tags.split(',').map(t => t.trim()).filter(Boolean)
       if (images) payload.images = images.split(',').map(i => i.trim()).filter(Boolean)
-      if (isEdit) payload.isActive = isActive
+      if (isEdit) payload.active = active
       
       if (isEdit && id) {
         await updateActivity(id, payload)
@@ -158,8 +158,8 @@ export default function ActivityForm(){
           </div>
           {isEdit && (
             <div className="flex items-center">
-              <input type="checkbox" id="isActive" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="mr-2" />
-              <label htmlFor="isActive" className="text-sm">Active</label>
+              <input type="checkbox" id="active" checked={active} onChange={e => setactive(e.target.checked)} className="mr-2" />
+              <label htmlFor="active" className="text-sm">Active</label>
             </div>
           )}
         </div>

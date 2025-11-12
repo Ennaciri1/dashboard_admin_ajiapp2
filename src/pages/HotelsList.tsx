@@ -1,195 +1,206 @@
-import React, { useEffect, useState } from 'react'
-import { getAdminHotels, deleteHotel, Hotel } from '../api/hotels'
-import { getAdminSupportedLanguages, SupportedLanguage } from '../api/languages'
-import { getAdminCities, City } from '../api/cities'
-import { PageHeader, LinkButton } from '../components/UI'
-import { Table, TableRow, TableCell } from '../components/Table'
-import { Badge } from '../components/Badge'
-import { ActionMenu } from '../components/ActionMenu'
-import { TableSkeleton } from '../components/Loading'
-import { PlusIcon } from '../assets/icons'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getAdminHotels, deleteHotel } from '../api/hotels'
+import { Hotel, TableColumn } from '../types'
+import Card, { CardHeader } from '../components/Card'
+import Button from '../components/Button'
+import Table from '../components/Table'
+import Badge from '../components/Badge'
+import Loading from '../components/Loading'
+import EmptyState from '../components/EmptyState'
+import { ConfirmModal } from '../components/Modal'
+import Alert from '../components/Alert'
 
-export default function HotelsList(){
+export default function HotelsList() {
+  const navigate = useNavigate()
   const [hotels, setHotels] = useState<Hotel[]>([])
-  const [languages, setLanguages] = useState<SupportedLanguage[]>([])
-  const [cities, setCities] = useState<City[]>([])
-  const [selectedLang, setSelectedLang] = useState<string>('en')
-  const [searchTerm, setSearchTerm] = useState<string>('')
-  const [cityFilter, setCityFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  async function load(){
-    setLoading(true)
-    try{
-      const res = await getAdminHotels()
-      const responseData: any = res.data
-      const hotelsData = responseData?.data || responseData || []
-      setHotels(Array.isArray(hotelsData) ? hotelsData : [])
-      
-      // Load languages
-      const langRes = await getAdminSupportedLanguages()
-      const langData: any = langRes.data
-      const langs = langData?.data || langData || []
-      setLanguages(Array.isArray(langs) ? langs : [])
-      
-      // Load cities
-      const citiesRes = await getAdminCities()
-      const citiesData: any = citiesRes.data
-      const citiesList = citiesData?.data || citiesData || []
-      setCities(Array.isArray(citiesList) ? citiesList : [])
-    }catch(e: any){
-      setError(e?.response?.data?.message || e.message)
-    }finally{ setLoading(false) }
-  }
-
-  function getCityName(cityId: string): string {
-    const city = cities.find(c => c.id === cityId)
-    return (city?.nameTranslations as any)?.[selectedLang] || city?.nameTranslations?.en || cityId
-  }
-
-  useEffect(()=>{ load() }, [])
-
-  async function handleDelete(id: string){
-    if (!confirm('Delete this hotel?')) return
-    try{
-      await deleteHotel(id)
-      setHotels(prev => prev.filter(h => h.id !== id))
-    }catch(e:any){ alert(e?.response?.data?.message || e.message) }
-  }
-
-  // Filter hotels based on search, city, and status
-  const filteredHotels = hotels.filter(hotel => {
-    const name = (hotel.nameTranslations as any)?.[selectedLang] || hotel.nameTranslations?.en || ''
-    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCity = cityFilter === 'all' || hotel.cityId === cityFilter
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'active' && hotel.isActive) || 
-                         (statusFilter === 'inactive' && !hotel.isActive)
-    return matchesSearch && matchesCity && matchesStatus
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; hotel: Hotel | null }>({
+    isOpen: false,
+    hotel: null,
   })
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    loadHotels()
+  }, [])
+
+  const loadHotels = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await getAdminHotels()
+      setHotels(data)
+    } catch (err: any) {
+      setError(err.message || 'Error lors du chargement des hôtels')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteModal.hotel) return
+
+    try {
+      setDeleting(true)
+      await deleteHotel(deleteModal.hotel.id)
+      setHotels(hotels.filter((h) => h.id !== deleteModal.hotel!.id))
+      setDeleteModal({ isOpen: false, hotel: null })
+    } catch (err: any) {
+      setError(err.message || 'Error lors de la suppression')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const columns: TableColumn<Hotel>[] = [
+    {
+      key: 'nameTranslations',
+      label: 'Name',
+      render: (_, hotel) => (
+          <div className="flex items-center gap-3">
+          <div>
+            <div className="font-medium text-gray-900">
+              {hotel.nameTranslations.en || hotel.nameTranslations.fr || hotel.nameTranslations.ar}
+            </div>
+            <div className="text-sm text-gray-500">
+              {hotel.minPrice && <span>À partir de {hotel.minPrice} MAD</span>}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'rating',
+      label: 'Rating',
+      render: (_, hotel) => (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center text-warning-500">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            <span className="ml-1 font-medium">{hotel.rating?.toFixed(1) || '0.0'}</span>
+          </div>
+          <span className="text-sm text-gray-500">({hotel.ratingCount || 0})</span>
+        </div>
+      ),
+    },
+    {
+      key: 'active',
+      label: 'Status',
+      render: (value) =>
+        value ? (
+          <Badge variant="success" dot>
+            Active
+          </Badge>
+        ) : (
+          <Badge variant="secondary" dot>
+            Inactive
+          </Badge>
+        ),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (_, hotel) => (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/hotels/${hotel.id}/view`)
+            }}
+          >
+            View
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/hotels/${hotel.id}/edit`)
+            }}
+          >
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={(e) => {
+              e.stopPropagation()
+              setDeleteModal({ isOpen: true, hotel })
+            }}
+          >
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <Card>
+          <Loading text="Chargement des hôtels..." />
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="px-8 py-6">
-      <PageHeader 
-        title="Hotels" 
-        icon="🏨"
-        actions={
-          <div className="flex items-center gap-3">
-            <select 
-              value={selectedLang} 
-              onChange={(e) => setSelectedLang(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-[#97051D] focus:border-transparent"
-            >
-              {languages.map(lang => (
-                <option key={lang.code} value={lang.code}>{lang.name}</option>
-              ))}
-            </select>
-            <LinkButton to="/hotels/new" className="flex items-center gap-2">
-              <PlusIcon />
-              New Hotel
-            </LinkButton>
-          </div>
-        }
-      />
-      
-      {/* Search and Filters */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6 flex flex-wrap gap-4 items-center">
-        <div className="flex-1 min-w-[250px]">
-          <input
-            type="text"
-            placeholder="Search hotels..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#97051D] focus:border-transparent"
-          />
-        </div>
-        <div>
-          <select
-            value={cityFilter}
-            onChange={(e) => setCityFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-[#97051D] focus:border-transparent"
-          >
-            <option value="all">All Cities</option>
-            {cities.map(city => (
-              <option key={city.id} value={city.id}>
-                {(city.nameTranslations as any)?.[selectedLang] || city.nameTranslations?.en}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-[#97051D] focus:border-transparent"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-        <div className="text-sm text-gray-600">
-          Showing {filteredHotels.length} of {hotels.length} hotels
-        </div>
-      </div>
-      
-      {loading && <TableSkeleton rows={5} columns={5} />}
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg animate-slideDown">{error}</div>}
-      
-      {!loading && !error && (
-        <div className="animate-fadeIn">
-          <Table>
-        <thead>
-          <TableRow>
-            <TableCell header>Name</TableCell>
-            <TableCell header>City</TableCell>
-            <TableCell header>Min Price</TableCell>
-            <TableCell header>Rating</TableCell>
-            <TableCell header>Status</TableCell>
-            <TableCell header>Actions</TableCell>
-          </TableRow>
-        </thead>
-        <tbody>
-          {filteredHotels.length === 0 ? (
-            <TableRow>
-              <TableCell className="text-center text-gray-500 py-8">No hotels found</TableCell>
-              <TableCell> </TableCell>
-              <TableCell> </TableCell>
-              <TableCell> </TableCell>
-              <TableCell> </TableCell>
-              <TableCell> </TableCell>
-            </TableRow>
-          ) : (
-            filteredHotels.map(h => (
-            <TableRow key={h.id}>
-              <TableCell>{(h.nameTranslations as any)?.[selectedLang] || h.nameTranslations?.en || '-'}</TableCell>
-              <TableCell>
-                <span className="text-sm text-gray-600">{getCityName(h.cityId)}</span>
-              </TableCell>
-              <TableCell>${h.minPrice || 0}</TableCell>
-              <TableCell>
-                {h.rating ? `${h.rating.toFixed(1)} ⭐ (${h.ratingCount})` : 'No ratings'}
-              </TableCell>
-              <TableCell>
-                <Badge variant={h.isActive ? 'success' : 'gray'}>
-                  {h.isActive ? 'Active' : 'Inactive'}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <ActionMenu
-                  viewLink={`/hotels/${h.id}/view`}
-                  editLink={`/hotels/${h.id}/edit`}
-                  onDelete={() => handleDelete(h.id)}
-                />
-              </TableCell>
-            </TableRow>
-          )))}
-        </tbody>
-      </Table>
-        </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      {error && (
+        <Alert variant="danger" onClose={() => setError(null)}>
+          {error}
+        </Alert>
       )}
+
+      <Card>
+        <CardHeader
+          title="Gestion des Hôtels"
+          subtitle={`${hotels.length} hôtel(s) au total`}
+          action={
+            <Button
+              onClick={() => navigate('/hotels/new')}
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              }
+            >
+              New Hotel
+            </Button>
+          }
+        />
+
+        {hotels.length === 0 ? (
+          <EmptyState
+            title="None hôtel"
+            description="Commencez par ajouter votre premier hôtel"
+            action={{
+              label: 'Add un hôtel',
+              onClick: () => navigate('/hotels/new'),
+            }}
+          />
+        ) : (
+          <Table columns={columns} data={hotels} keyExtractor={(hotel) => hotel.id} />
+        )}
+      </Card>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, hotel: null })}
+        onConfirm={handleDelete}
+        title="Delete l'hôtel"
+        message={`Are you sure de vouloir supprimer l'hôtel "${deleteModal.hotel?.nameTranslations.en}" ? Cette action est irréversible.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   )
 }

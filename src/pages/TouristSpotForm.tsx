@@ -8,6 +8,7 @@ import { EditIcon, PlusIcon } from '../assets/icons'
 import { getImageUrl } from '../lib/utils'
 import FormSection from '../components/FormSection'
 import FormActionsBar from '../components/FormActionsBar'
+import MapPicker from '../components/MapPicker'
 
 export default function TouristSpotForm(){
   const { id } = useParams()
@@ -27,7 +28,7 @@ export default function TouristSpotForm(){
   const [closingTime, setClosingTime] = useState('')
   const [images, setImages] = useState<TouristSpotImage[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [isActive, setIsActive] = useState(false)
+  const [active, setactive] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -45,12 +46,17 @@ export default function TouristSpotForm(){
       const res = await getSupportedLanguages(true)
       // getSupportedLanguages returns axios.data; normalize to array regardless of envelope
       const responseData: any = res
-      const langs: SupportedLanguage[] = Array.isArray(responseData?.data)
+      const allLangs: SupportedLanguage[] = Array.isArray(responseData?.data)
         ? responseData.data
         : (Array.isArray(responseData) ? responseData : [])
-      setLanguages(langs)
+      
+      // ✅ Filter to only show ACTIVE languages
+      const activeLangs = allLangs.filter(lang => lang.active)
+      console.log('✅ Active languages in TouristSpotForm:', activeLangs.map(l => l.code))
+      
+      setLanguages(activeLangs)
       const initial: Record<string, string> = {}
-      langs.forEach((l: SupportedLanguage) => initial[l.code] = '')
+      activeLangs.forEach((l: SupportedLanguage) => initial[l.code] = '')
       setNameTranslations(initial)
       setDescTranslations({...initial})
       setAddressTranslations({...initial})
@@ -76,11 +82,10 @@ export default function TouristSpotForm(){
   async function loadSpot(){
     try {
       const res = await getAdminTouristSpots()
-      const responseData: any = res.data
-      const spots = Array.isArray(responseData?.data) ? responseData.data : (Array.isArray(responseData) ? responseData : [])
+      // getAdminTouristSpots returns array directly
+      const spots = Array.isArray(res) ? res : (res.data || [])
       const spot = spots.find((s: any) => s.id === id)
       if (spot) {
-        // Merge with existing translations to ensure all language codes have values
         setNameTranslations(prev => ({ ...prev, ...(spot.nameTranslations || {}) }))
         setDescTranslations(prev => ({ ...prev, ...(spot.descriptionTranslations || {}) }))
         setAddressTranslations(prev => ({ ...prev, ...(spot.addressTranslations || {}) }))
@@ -99,7 +104,7 @@ export default function TouristSpotForm(){
           owner: img?.owner ?? '',
           altText: img?.altText ?? ''
         })))
-        setIsActive(spot.isActive)
+        setactive(spot.active)
       }
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message)
@@ -177,8 +182,15 @@ export default function TouristSpotForm(){
       if (addressTranslations[code]?.trim()) address[code] = addressTranslations[code].trim()
     })
 
-    if (!name.en || !desc.en) {
-      setError('English translations for name and description are required')
+    // ✅ Vérifier qu'at least one langue active a une traduction
+    if (Object.keys(name).length === 0) {
+      setError('Au moins une traduction du nom is required')
+      setLoading(false)
+      return
+    }
+
+    if (Object.keys(desc).length === 0) {
+      setError('Au moins une traduction de la description is required')
       setLoading(false)
       return
     }
@@ -198,23 +210,23 @@ export default function TouristSpotForm(){
     }
 
     try {
-      // Per API docs, creation allows ONLY English translations; updates can include any
-      const namePayload = isEdit ? name : { en: name.en }
-      const descPayload = isEdit ? desc : { en: desc.en }
-      const addressPayload = isEdit ? (Object.keys(address).length ? address : undefined) : (address.en ? { en: address.en } : undefined)
-
+      // API v1.0: Multiple languages can be provided during creation
       const payload: any = {
-        nameTranslations: namePayload,
-        descriptionTranslations: descPayload,
+        nameTranslations: name,
+        descriptionTranslations: desc,
         cityId,
         location: { latitude: lat, longitude: lng },
         isPaidEntry
       }
-      if (addressPayload) payload.addressTranslations = addressPayload
+      
+      // Add address translations if any are provided
+      if (Object.keys(address).length > 0) {
+        payload.addressTranslations = address
+      }
       if (openingTime) payload.openingTime = openingTime
       if (closingTime) payload.closingTime = closingTime
       if (images.length > 0) payload.images = images
-      if (isEdit) payload.isActive = isActive
+      if (isEdit) payload.active = active
       
       if (isEdit && id) {
         await updateTouristSpot(id, payload)
@@ -299,14 +311,29 @@ export default function TouristSpotForm(){
                 {cities.map(c => <option key={c.id} value={String(c.id)}>{c.nameTranslations.en}</option>)}
               </select>
             </div>
+
+            {/* Carte interactive avec recherche intégrée */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Emplacement sur la carte</label>
+              <MapPicker
+                latitude={parseFloat(latitude) || 33.9716}
+                longitude={parseFloat(longitude) || -6.8498}
+                onLocationChange={(lat, lng) => {
+                  setLatitude(lat.toString())
+                  setLongitude(lng.toString())
+                }}
+              />
+            </div>
+
+            {/* Affichage des coordonnées */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Latitude <span className="text-red-600">*</span></label>
-                <input type="number" step="any" className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-[#97051D]/20" value={latitude} onChange={e=>setLatitude(e.target.value)} required />
+                <input type="number" step="any" className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-[#97051D]/20 bg-gray-50" value={latitude} onChange={e=>setLatitude(e.target.value)} required readOnly />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Longitude <span className="text-red-600">*</span></label>
-                <input type="number" step="any" className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-[#97051D]/20" value={longitude} onChange={e=>setLongitude(e.target.value)} required />
+                <input type="number" step="any" className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-[#97051D]/20 bg-gray-50" value={longitude} onChange={e=>setLongitude(e.target.value)} required readOnly />
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -327,8 +354,8 @@ export default function TouristSpotForm(){
             </div>
             {isEdit && (
               <div className="flex items-center">
-                <input type="checkbox" id="isActive" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="mr-2" />
-                <label htmlFor="isActive" className="text-sm">Active</label>
+                <input type="checkbox" id="active" checked={active} onChange={e => setactive(e.target.checked)} className="mr-2" />
+                <label htmlFor="active" className="text-sm">Active</label>
               </div>
             )}
           </FormSection>

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { getAdminTouristSpots, deleteTouristSpot, TouristSpot } from '../api/touristSpots'
 import { getAdminSupportedLanguages, SupportedLanguage } from '../api/languages'
-import { getAdminCities, City } from '../api/cities'
+import { getAllCitiesAdmin, City } from '../api/cities'
 import { PageHeader, LinkButton } from '../components/UI'
-import { Table, TableRow, TableCell } from '../components/Table'
-import { Badge } from '../components/Badge'
+import { TableRow, TableCell } from '../components/Table'
+import Badge from '../components/Badge'
 import { ActionMenu } from '../components/ActionMenu'
 import { TableSkeleton } from '../components/Loading'
 import { PlusIcon } from '../assets/icons'
@@ -23,21 +23,15 @@ export default function TouristSpotsList(){
   async function load(){
     setLoading(true)
     try{
-      const res = await getAdminTouristSpots()
-      const responseData: any = res.data
-      const spotsData = responseData?.data || responseData || []
+      const spotsData = await getAdminTouristSpots()
       setSpots(Array.isArray(spotsData) ? spotsData : [])
       
       // Load languages
-      const langRes = await getAdminSupportedLanguages()
-      const langData: any = langRes.data
-      const langs = langData?.data || langData || []
+      const langs = await getAdminSupportedLanguages()
       setLanguages(Array.isArray(langs) ? langs : [])
       
       // Load cities
-      const citiesRes = await getAdminCities()
-      const citiesData: any = citiesRes.data
-      const citiesList = citiesData?.data || citiesData || []
+      const citiesList = await getAllCitiesAdmin()
       setCities(Array.isArray(citiesList) ? citiesList : [])
     }catch(e: any){
       setError(e?.response?.data?.message || e.message)
@@ -73,8 +67,8 @@ export default function TouristSpotsList(){
     const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCity = cityFilter === 'all' || spot.cityId === cityFilter
     const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'active' && spot.isActive) || 
-                         (statusFilter === 'inactive' && !spot.isActive)
+                         (statusFilter === 'active' && spot.active) || 
+                         (statusFilter === 'inactive' && !spot.active)
     return matchesSearch && matchesCity && matchesStatus
   })
 
@@ -147,9 +141,9 @@ export default function TouristSpotsList(){
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg animate-slideDown">{error}</div>}
       
       {!loading && !error && (
-        <div className="animate-fadeIn">
-          <Table>
-        <thead>
+        <div className="animate-fadeIn overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
           <TableRow>
             <TableCell header>Name</TableCell>
             <TableCell header>City</TableCell>
@@ -185,8 +179,8 @@ export default function TouristSpotsList(){
                 {spot.rating ? `${spot.rating.toFixed(1)} ⭐ (${spot.ratingCount})` : 'No ratings'}
               </TableCell>
               <TableCell>
-                <Badge variant={spot.isActive ? 'success' : 'gray'}>
-                  {spot.isActive ? 'Active' : 'Inactive'}
+                <Badge variant={spot.active ? 'success' : 'gray'}>
+                  {spot.active ? 'Active' : 'Inactive'}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -199,7 +193,7 @@ export default function TouristSpotsList(){
             </TableRow>
           )))}
         </tbody>
-      </Table>
+      </table>
         </div>
       )}
     </div>

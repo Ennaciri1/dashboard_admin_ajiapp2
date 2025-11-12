@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Formulaires</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .test { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { background: #d4edda; }
+        .error { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test des URLs de Formulaires</h1>
+    <p>Cliquez sur chaque lien pour tester si le formulaire s'affiche:</p>
+    
+    <div class="test">
+        <h3>1. Cities</h3>
+        <a href="http://localhost:5173/cities/new" target="_blank">→ Ajouter une ville</a>
+    </div>
+    
+    <div class="test">
+        <h3>2. Hotels</h3>
+        <a href="http://localhost:5173/hotels/new" target="_blank">→ Ajouter un hôtel</a>
+    </div>
+    
+    <div class="test">
+        <h3>3. Contacts</h3>
+        <a href="http://localhost:5173/contacts/new" target="_blank">→ Ajouter un contact</a>
+    </div>
+    
+    <div class="test">
+        <h3>4. Languages</h3>
+        <a href="http://localhost:5173/languages/new" target="_blank">→ Ajouter une langue</a>
+    </div>
+    
+    <div class="test">
+        <h3>5. Activities</h3>
+        <a href="http://localhost:5173/activities/new" target="_blank">→ Ajouter une activité</a>
+    </div>
+    
+    <div class="test">
+        <h3>6. Tourist Spots</h3>
+        <a href="http://localhost:5173/tourist-spots/new" target="_blank">→ Ajouter un site touristique</a>
+    </div>
+    
+    <hr>
+    
+    <h2>📋 Checklist de diagnostic:</h2>
+    <ol>
+        <li>Le serveur dev est-il lancé? (npm run dev)</li>
+        <li>Êtes-vous connecté? (token valide)</li>
+        <li>Y a-t-il des erreurs dans la console du navigateur? (F12)</li>
+        <li>Le formulaire s'affiche-t-il mais est vide?</li>
+        <li>Ou rien ne s'affiche du tout?</li>
+    </ol>
+    
+    <div class="test error">
+        <strong>⚠️ Si les formulaires ne s'affichent pas:</strong>
+        <ul>
+            <li>Ouvrez la console (F12)</li>
+            <li>Vérifiez les erreurs JavaScript</li>
+            <li>Vérifiez que vous êtes bien connecté</li>
+        </ul>
+    </div>
+</body>
+</html>

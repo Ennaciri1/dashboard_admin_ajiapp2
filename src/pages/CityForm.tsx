@@ -1,143 +1,184 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { createCity, updateCity, getAdminCities, NameTranslations } from '../api/cities'
-import { getSupportedLanguages, SupportedLanguage } from '../api/languages'
-import { EditIcon, PlusIcon } from '../assets/icons'
+import { createCity, updateCity, getCityById } from '../api/cities'
+import { getSupportedLanguages } from '../api/languages'
+import { City, SupportedLanguage, TranslationMap } from '../types'
+import Card, { CardHeader } from '../components/Card'
+import Button from '../components/Button'
+import Input from '../components/Input'
+import Loading from '../components/Loading'
+import Alert from '../components/Alert'
 
-export default function CityForm(){
+export default function CityForm() {
   const { id } = useParams()
-  const nav = useNavigate()
+  const navigate = useNavigate()
   const isEdit = Boolean(id)
 
-  const [languages, setLanguages] = useState<SupportedLanguage[]>([])
-  const [translations, setTranslations] = useState<Record<string, string>>({})
-  const [isActive, setIsActive] = useState(true)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(isEdit)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [languages, setLanguages] = useState<SupportedLanguage[]>([])
+  
+  const [formData, setFormData] = useState<{
+    nameTranslations: TranslationMap
+    active: boolean
+  }>({
+    nameTranslations: { en: '' },
+    active: true, // Changé à true par défaut
+  })
 
   useEffect(() => {
-    async function init() {
-      await loadLanguages()
-      if (isEdit) await loadCity()
+    loadLanguages()
+    if (isEdit && id) {
+      loadCity(id)
     }
-    init()
-  }, [id])
+  }, [id, isEdit])
 
-  async function loadLanguages(){
+  const loadLanguages = async () => {
     try {
-      const res = await getSupportedLanguages(true)
-      const langs = res.data || []
-      setLanguages(langs)
-      // Initialize translations object
-      const initial: Record<string, string> = {}
-      langs.forEach((l: SupportedLanguage) => initial[l.code] = '')
-      setTranslations(initial)
-    } catch (e: any) {
-      console.error('Failed to load languages', e)
+      const data = await getSupportedLanguages(true)
+      // ✅ Filter to only show ACTIVE languages
+      const activeLangs = data.filter((lang: SupportedLanguage) => lang.active)
+      console.log('✅ Active languages in CityForm:', activeLangs.map(l => l.code))
+      setLanguages(activeLangs)
+    } catch (err: any) {
+      setError('Error lors du chargement des langues')
     }
   }
 
-  async function loadCity(){
+  const loadCity = async (cityId: string) => {
     try {
-      const res = await getAdminCities()
-      const cities = res.data || []
-      const city = cities.find((c: any) => c.id === id)
-      if (city) {
-        // Merge with existing translations to ensure all language codes have values
-        setTranslations(prev => ({ ...prev, ...(city.nameTranslations || {}) }))
-        setIsActive(city.isActive)
-      }
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e.message)
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent){
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-
-    // Build payload with only non-empty translations
-    const nameTranslations: any = {}
-    Object.keys(translations).forEach(code => {
-      if (translations[code]?.trim()) nameTranslations[code] = translations[code].trim()
-    })
-
-    if (!nameTranslations.en) {
-      setError('English translation is required')
-      setLoading(false)
-      return
-    }
-
-    try {
-      if (isEdit && id) {
-        await updateCity(id, { nameTranslations, isActive })
-      } else {
-        await createCity({ nameTranslations, isActive })
-      }
-      nav('/cities')
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || 'Failed to save city')
+      setLoading(true)
+      const data = await getCityById(cityId)
+      setFormData({
+        nameTranslations: data.nameTranslations,
+        active: data.active,
+      })
+    } catch (err: any) {
+      setError(err.message || 'Error lors du chargement de la ville')
     } finally {
       setLoading(false)
     }
   }
 
-  return (
-    <div className="px-8 py-6">
-      <div className="mb-8 flex items-center gap-3">
-        {isEdit ? (
-          <EditIcon className="w-8 h-8 text-[#97051D]" />
-        ) : (
-          <PlusIcon className="w-8 h-8 text-[#97051D]" />
-        )}
-        <h2 className="text-3xl font-bold text-gray-900">{isEdit ? 'Edit City' : 'Create City'}</h2>
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // ✅ Vérifier qu'at least one langue active a une traduction
+    const hasTranslation = Object.values(formData.nameTranslations).some(val => val?.trim())
+    if (!hasTranslation) {
+      setError('Au moins une traduction du nom is required')
+      return
+    }
+
+    try {
+      setSaving(true)
+      setError(null)
+
+      if (isEdit && id) {
+        await updateCity(id, formData)
+      } else {
+        await createCity(formData)
+      }
+
+      navigate('/cities')
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || err.message || 'Error lors de l\'enregistrement'
+      console.error('Form submission error:', err.response?.data || err)
+      setError(errorMessage)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTranslationChange = (lang: string, value: string) => {
+    setFormData({
+      ...formData,
+      nameTranslations: {
+        ...formData.nameTranslations,
+        [lang]: value,
+      },
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <Card>
+          <Loading text="Chargement..." />
+        </Card>
       </div>
-      {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">{error}</div>}
-      <form onSubmit={handleSubmit} className="bg-white border border-gray-200 p-8 rounded-lg max-w-3xl">
-        <div className="space-y-6">
-          {languages.map(lang => (
-            <div key={lang.code}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                {lang.name} ({lang.code}) {lang.code === 'en' && <span className="text-red-600">*</span>}
-              </label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 px-4 py-3 rounded-lg focus:ring-2 focus:ring-[#97051D] focus:border-transparent transition-all"
-                value={translations[lang.code] || ''}
-                onChange={e => setTranslations(prev => ({ ...prev, [lang.code]: e.target.value }))}
+    )
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      {error && (
+        <Alert variant="danger" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      <Card>
+        <CardHeader
+          title={isEdit ? 'Edit la ville' : 'New City'}
+          subtitle={isEdit ? 'Modifiez les informations de la ville' : 'Ajoutez une nouvelle ville au système'}
+        />
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Translations */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-gray-900">Traductions du nom</h3>
+            
+            {!isEdit && (
+              <Alert variant="info">
+                ℹ️ <strong>Lors de la création</strong>, seule la traduction anglaise is required. 
+                Les autres langues sont optionnelles mais peuvent être ajoutées maintenant ou plus tard.
+              </Alert>
+            )}
+            
+            {languages.map((lang) => (
+              <Input
+                key={lang.code}
+                label={`Name (${lang.name})`}
+                placeholder={`Entrez le nom en ${lang.name.toLowerCase()}`}
+                value={formData.nameTranslations[lang.code] || ''}
+                onChange={(e) => handleTranslationChange(lang.code, e.target.value)}
                 required={lang.code === 'en'}
               />
-            </div>
-          ))}
-          <div className="flex items-center pt-4">
+            ))}
+          </div>
+
+          {/* Active status */}
+          <div className="flex items-center gap-3">
             <input
               type="checkbox"
-              id="isActive"
-              checked={isActive}
-              onChange={e => setIsActive(e.target.checked)}
-              className="w-4 h-4 text-[#97051D] border-gray-300 rounded focus:ring-[#97051D]"
+              id="active"
+              checked={formData.active}
+              onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+              className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
             />
-            <label htmlFor="isActive" className="ml-2 text-sm font-medium text-gray-700">Active</label>
+            <label htmlFor="active" className="text-sm font-medium text-gray-700">
+              City active
+            </label>
           </div>
-        </div>
-        <div className="mt-8 flex gap-3">
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-[#97051D] hover:bg-[#7a0418] text-white px-6 py-3 rounded-lg disabled:opacity-50 font-medium transition-all"
-          >
-            {loading ? 'Saving...' : 'Save City'}
-          </button>
-          <button
-            type="button"
-            onClick={() => nav('/cities')}
-            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium transition-all"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 pt-6 border-t border-gray-200">
+            <Button type="submit" loading={saving}>
+              {isEdit ? 'Save' : 'Create'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => navigate('/cities')}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   )
 }

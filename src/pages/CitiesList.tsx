@@ -1,155 +1,193 @@
-import React, { useEffect, useState } from 'react'
-import { getAdminCities, deleteCity, City } from '../api/cities'
-import { getAdminSupportedLanguages, SupportedLanguage } from '../api/languages'
-import { Table, TableRow, TableCell } from '../components/Table'
-import { Badge } from '../components/Badge'
-import { PageHeader, LinkButton } from '../components/UI'
-import { ActionMenu } from '../components/ActionMenu'
-import { TableSkeleton } from '../components/Loading'
-import { PlusIcon } from '../assets/icons'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getAllCitiesAdmin, deleteCity } from '../api/cities'
+import { City, TableColumn } from '../types'
+import Card, { CardHeader } from '../components/Card'
+import Button from '../components/Button'
+import Table from '../components/Table'
+import Badge from '../components/Badge'
+import Loading from '../components/Loading'
+import EmptyState from '../components/EmptyState'
+import { ConfirmModal } from '../components/Modal'
+import Alert from '../components/Alert'
 
 export default function CitiesList() {
+  const navigate = useNavigate()
   const [cities, setCities] = useState<City[]>([])
-  const [languages, setLanguages] = useState<SupportedLanguage[]>([])
-  const [selectedLang, setSelectedLang] = useState<string>('en')
-  const [searchTerm, setSearchTerm] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  async function load(){
-    setLoading(true)
-    try{
-      const res = await getAdminCities()
-      const responseData: any = res.data
-      const citiesData = responseData?.data || responseData || []
-      setCities(Array.isArray(citiesData) ? citiesData : [])
-      
-      // Load languages
-      const langRes = await getAdminSupportedLanguages()
-      const langData: any = langRes.data
-      const langs = langData?.data || langData || []
-      setLanguages(Array.isArray(langs) ? langs : [])
-    }catch(e: any){
-      setError(e?.response?.data?.message || e.message)
-    }finally{ setLoading(false) }
-  }
-
-  useEffect(()=>{ load() }, [])
-
-  async function handleDelete(id: string){
-    if (!confirm('Delete this city?')) return
-    try{
-      await deleteCity(id)
-      setCities(prev => prev.filter(c => c.id !== id))
-    }catch(e:any){ alert(e?.response?.data?.message || e.message) }
-  }
-
-  // Filter cities based on search and status
-  const filteredCities = cities.filter(city => {
-    const name = (city.nameTranslations as any)?.[selectedLang] || city.nameTranslations?.en || ''
-    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'active' && city.isActive) || 
-                         (statusFilter === 'inactive' && !city.isActive)
-    return matchesSearch && matchesStatus
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; city: City | null }>({
+    isOpen: false,
+    city: null,
   })
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    loadCities()
+  }, [])
+
+  const loadCities = async () => {
+    try {
+    setLoading(true)
+      setError(null)
+      const data = await getAllCitiesAdmin()
+      setCities(data)
+    } catch (err: any) {
+      setError(err.message || 'Error lors du chargement des villes')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteModal.city) return
+
+    try {
+      setDeleting(true)
+      await deleteCity(deleteModal.city.id)
+      setCities(cities.filter((c) => c.id !== deleteModal.city!.id))
+      setDeleteModal({ isOpen: false, city: null })
+    } catch (err: any) {
+      setError(err.message || 'Error lors de la suppression')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const columns: TableColumn<City>[] = [
+    {
+      key: 'nameTranslations',
+      label: 'Name',
+      render: (_, city) => (
+        <div>
+          <div className="font-medium text-gray-900">{city.nameTranslations.en || city.nameTranslations.fr || city.nameTranslations.ar}</div>
+          <div className="text-sm text-gray-500">
+            {city.nameTranslations.ar && <span className="mr-2">AR: {city.nameTranslations.ar}</span>}
+            {city.nameTranslations.fr && <span>FR: {city.nameTranslations.fr}</span>}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'active',
+      label: 'Status',
+      render: (value) =>
+        value ? (
+          <Badge variant="success" dot>
+            Active
+          </Badge>
+        ) : (
+          <Badge variant="secondary" dot>
+            Inactive
+          </Badge>
+        ),
+    },
+    {
+      key: 'createdAt',
+      label: 'Date de création',
+      render: (value) => (value ? new Date(value).toLocaleDateString('fr-FR') : '-'),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (_, city) => (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/cities/${city.id}/view`)
+            }}
+          >
+            View
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/cities/${city.id}/edit`)
+            }}
+          >
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={(e) => {
+              e.stopPropagation()
+              setDeleteModal({ isOpen: true, city })
+            }}
+          >
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <Card>
+          <Loading text="Chargement des villes..." />
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="px-8 py-6">
-      <PageHeader 
-        title="Cities" 
-        icon="🏙️"
-        actions={
-          <div className="flex items-center gap-3">
-            <select 
-              value={selectedLang} 
-              onChange={(e) => setSelectedLang(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-[#97051D] focus:border-transparent"
-            >
-              {languages.map(lang => (
-                <option key={lang.code} value={lang.code}>{lang.name}</option>
-              ))}
-            </select>
-            <LinkButton to="/cities/new" className="flex items-center gap-2">
-              <PlusIcon />
-              New City
-            </LinkButton>
-          </div>
-        }
-      />
-      
-      {/* Search and Filters */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6 flex flex-wrap gap-4 items-center">
-        <div className="flex-1 min-w-[250px]">
-          <input
-            type="text"
-            placeholder="Search cities..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#97051D] focus:border-transparent"
-          />
-        </div>
-        <div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-[#97051D] focus:border-transparent"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-        <div className="text-sm text-gray-600">
-          Showing {filteredCities.length} of {cities.length} cities
-        </div>
-      </div>
-      
-      {loading && <TableSkeleton rows={5} columns={3} />}
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg animate-slideDown">{error}</div>}
-      
-      {!loading && !error && (
-        <div className="animate-fadeIn">
-          <Table>
-        <thead>
-          <TableRow>
-            <TableCell header>Name</TableCell>
-            <TableCell header>Status</TableCell>
-            <TableCell header>Actions</TableCell>
-          </TableRow>
-        </thead>
-        <tbody>
-          {filteredCities.length === 0 ? (
-            <TableRow>
-              <TableCell className="text-center text-gray-500 py-8">
-                No cities found
-              </TableCell>
-              <TableCell> </TableCell>
-              <TableCell> </TableCell>
-            </TableRow>
-          ) : (
-            filteredCities.map(c => (
-            <TableRow key={c.id}>
-              <TableCell>{(c.nameTranslations as any)?.[selectedLang] || c.nameTranslations?.en || '-'}</TableCell>
-              <TableCell>
-                <Badge variant={c.isActive ? 'success' : 'gray'}>
-                  {c.isActive ? 'Active' : 'Inactive'}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <ActionMenu
-                  viewLink={`/cities/${c.id}/view`}
-                  editLink={`/cities/${c.id}/edit`}
-                  onDelete={() => handleDelete(c.id)}
-                />
-              </TableCell>
-            </TableRow>
-          )))}
-        </tbody>
-      </Table>
-        </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      {error && (
+        <Alert variant="danger" onClose={() => setError(null)}>
+          {error}
+        </Alert>
       )}
+
+      <Card>
+        <CardHeader
+          title="Gestion des Villes"
+          subtitle={`${cities.length} ville(s) au total`}
+          action={
+            <Button
+              onClick={() => navigate('/cities/new')}
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              }
+            >
+              New City
+            </Button>
+          }
+        />
+
+        {cities.length === 0 ? (
+          <EmptyState
+            title="No ville"
+            description="Commencez par ajouter votre première ville"
+            action={{
+              label: 'Add une ville',
+              onClick: () => navigate('/cities/new'),
+            }}
+          />
+          ) : (
+          <Table columns={columns} data={cities} keyExtractor={(city) => city.id} />
+        )}
+      </Card>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, city: null })}
+        onConfirm={handleDelete}
+        title="Delete la ville"
+        message={`Are you sure de vouloir supprimer la ville "${deleteModal.city?.nameTranslations.en}" ? Cette action est irréversible.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   )
 }

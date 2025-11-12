@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getAdminHotels, Hotel } from '../api/hotels'
-import { getAdminSupportedLanguages, SupportedLanguage } from '../api/languages'
-import { getAdminCities, City } from '../api/cities'
+import { getSupportedLanguages, SupportedLanguage } from '../api/languages'
+import { getAllCitiesAdmin } from '../api/cities'
+import { City } from '../types'
 import { getImageUrl } from '../lib/imageUtils'
 
 export default function HotelDetail() {
@@ -22,8 +23,8 @@ export default function HotelDetail() {
     setError(null)
     try {
       const hotelsRes = await getAdminHotels()
-      const responseData: any = hotelsRes.data
-      const hotels = responseData?.data || responseData || []
+      // getAdminHotels already extracts data, returns array directly
+      const hotels = Array.isArray(hotelsRes) ? hotelsRes : []
       const foundHotel = hotels.find((h: Hotel) => h.id === id)
       
       if (!foundHotel) {
@@ -32,15 +33,13 @@ export default function HotelDetail() {
       }
       setHotel(foundHotel)
 
-      const langRes = await getAdminSupportedLanguages()
-      const langData: any = langRes.data
-      const langs = langData?.data || langData || []
-      setLanguages(Array.isArray(langs) ? langs : [])
+      const langRes = await getSupportedLanguages(true)
+      const langs = Array.isArray(langRes) ? langRes : (langRes.data || [])
+      setLanguages(langs)
 
-      const citiesRes = await getAdminCities()
-      const citiesData: any = citiesRes.data
-      const citiesList = citiesData?.data || citiesData || []
-      setCities(Array.isArray(citiesList) ? citiesList : [])
+      const citiesRes = await getAllCitiesAdmin()
+      const citiesList = Array.isArray(citiesRes) ? citiesRes : (citiesRes.data || [])
+      setCities(citiesList)
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message || 'Failed to load hotel details')
     } finally {
@@ -80,8 +79,8 @@ export default function HotelDetail() {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <span className={`px-3 py-1 text-sm rounded ${hotel.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-              {hotel.isActive ? 'Active' : 'Inactive'}
+            <span className={`px-3 py-1 text-sm rounded ${hotel.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+              {hotel.active ? 'Active' : 'Inactive'}
             </span>
           </div>
 

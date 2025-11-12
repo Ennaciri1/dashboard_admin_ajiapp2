@@ -1,96 +1,126 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../api/auth'
+import { me } from '../api/auth'
+import { setUserRole } from '../lib/auth'
+import Button from '../components/Button'
+import Input from '../components/Input'
+import Alert from '../components/Alert'
 
-export default function Login(){
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+export default function Login() {
+  const navigate = useNavigate()
+  const [formData, setFormData] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const nav = useNavigate()
 
-  async function handleSubmit(e: React.FormEvent){
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
+    
+    if (!formData.email || !formData.password) {
+      setError('Please fill in all fields')
+      return
+    }
+
     try {
-      await login({ email, password })
-      // Small delay to ensure tokens persisted before navigation
-      setTimeout(() => nav('/'), 50)
+      setLoading(true)
+      setError(null)
+      
+      // 1. Login to get tokens
+      await login(formData)
+      
+      // 2. Get user info (including role)
+      const userResponse = await me()
+      const userData = userResponse?.data || userResponse
+      const userRoles = userData?.roles || []
+      
+      console.log('📋 User roles:', userRoles)
+      
+      // 3. Check if user has ADMIN role
+      if (!userRoles.includes('ADMIN')) {
+        setError('❌ Access denied. Only administrators can access this panel.')
+        // Automatic logout
+        const { clearTokens } = await import('../lib/auth')
+        clearTokens()
+        setLoading(false)
+        return
+      }
+      
+      // 4. Store user role
+      setUserRole('ADMIN')
+      
+      // 5. Redirect to dashboard
+      navigate('/dashboard')
     } catch (err: any) {
-      const backendMsg = err?.response?.data?.message
-      const message = backendMsg || err.message || 'Login failed'
-      setError(message)
-      console.error('Login error:', err)
-    } finally { setLoading(false) }
+      console.error('❌ Login error:', err)
+      setError(err.message || 'Incorrect email or password')
+    } finally {
+      setLoading(false)
+    }
   }
 
-    return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md animate-scaleIn">
-        <div className="bg-white rounded-2xl border border-gray-200 p-8">
-          {/* Logo/Header */}
-          <div className="text-center mb-8">
-            <div className="inline-block p-3 bg-[#97051D] rounded-full mb-4 animate-fadeIn">
-              <span className="text-4xl">🏛️</span>
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900">
-              Admin Login
-            </h2>
-            <p className="text-gray-600 mt-2">Sign in to access your dashboard</p>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-blue-50 to-indigo-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo/Title */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-600 text-white mb-4 shadow-lg">
+            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
           </div>
+          <h1 className="text-3xl font-bold text-gray-900">AjiApp Admin</h1>
+          <p className="mt-2 text-gray-600">Sign in to your account</p>
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-              <input
-                type="email"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#97051D] focus:border-transparent transition-all duration-200"
-                placeholder="admin@example.com"
-                value={email}
-                onChange={e=>setEmail(e.target.value)}
-                required
-              />
+        {/* Login Card */}
+        <div className="bg-white rounded-2xl shadow-strong p-8">
+          {error && (
+            <div className="mb-6">
+              <Alert variant="danger" onClose={() => setError(null)}>
+                {error}
+              </Alert>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-              <input
-                type="password"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#97051D] focus:border-transparent transition-all duration-200"
-                placeholder="••••••••"
-                value={password}
-                onChange={e=>setPassword(e.target.value)}
-                required
-              />
-            </div>
+          )}
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start space-x-2 animate-slideDown">
-                <span className="text-lg">⚠️</span>
-                <span className="text-sm">{error}</span>
-              </div>
-            )}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <Input
+              label="Email"
+              type="email"
+              placeholder="admin@example.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+              leftIcon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              }
+            />
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full px-4 py-3 bg-[#97051D] hover:bg-[#7a0418] text-white font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center space-x-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                  </svg>
-                  <span>Signing in...</span>
-                </span>
-              ) : (
-                'Sign In'
-              )}
-            </button>
+            <Input
+              label="Password"
+              type="password"
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              required
+              leftIcon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              }
+            />
+
+            <Button type="submit" fullWidth loading={loading} size="lg">
+              Sign In
+            </Button>
           </form>
         </div>
+
+        {/* Footer */}
+        <p className="mt-6 text-center text-sm text-gray-500">
+          © 2025 AjiApp. All rights reserved.
+        </p>
       </div>
     </div>
   )
