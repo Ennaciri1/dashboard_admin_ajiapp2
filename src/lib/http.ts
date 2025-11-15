@@ -11,6 +11,13 @@ const api = axios.create({
   }
 })
 
+/**
+ * Token Expiration Times:
+ * - Access token: 15 minutes (900000 ms)
+ * - Refresh token: 7 days (604800000 ms)
+ * When refresh token expires, user must login again
+ */
+
 let isRefreshing = false
 let refreshSubscribers: ((token: string | null)=>void)[] = []
 
@@ -32,7 +39,7 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 api.interceptors.response.use(response => response, async (error: AxiosError) => {
   const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
   
-  // Check if this is a 401 error and not already retried
+  // Handle 401 Unauthorized - Token expired or invalid → Trigger refresh flow
   if (error.response && error.response.status === 401 && !originalRequest._retry){
     // Don't retry refresh endpoint itself to avoid infinite loop
     const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh')
@@ -73,22 +80,30 @@ api.interceptors.response.use(response => response, async (error: AxiosError) =>
       }
       
       // Try to refresh the access token
+      // POST /api/v1/auth/refresh
+      // Body: { "refreshToken": "your-refresh-token" }
+      // Response includes NEW access token AND NEW refresh token
       const resp = await api.post('/api/v1/auth/refresh', { refreshToken })
-      const data = (resp.data && resp.data.data) || null
       
-      if (data && data.accessToken) {
-        // Successfully refreshed
-        setTokens(data.accessToken, data.refreshToken ?? refreshToken)
-        onRefreshed(data.accessToken)
+      // Extract tokens from response (handle different response structures)
+      const responseData = resp.data || {}
+      const data = responseData.data || responseData
+      const newAccessToken = data.accessToken || data.token || data.access_token
+      const newRefreshToken = data.refreshToken || data.refresh_token
+      
+      if (newAccessToken) {
+        // Successfully refreshed - Store both new tokens and discard old ones
+        setTokens(newAccessToken, newRefreshToken || refreshToken)
+        onRefreshed(newAccessToken)
         
         // Retry the original request with new token
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${data.accessToken}`
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
         }
         return api(originalRequest)
       } else {
         // No valid token in response
-        throw new Error('Invalid refresh response')
+        throw new Error('Invalid refresh response: no access token received')
       }
     } catch (refreshError: any) {
       // Refresh failed (either 401 or network error)
@@ -98,6 +113,7 @@ api.interceptors.response.use(response => response, async (error: AxiosError) =>
       // Check if refresh returned 401 (expired refresh token)
       if (refreshError.response && refreshError.response.status === 401) {
         // Refresh token expired, redirect to login
+        console.warn('Refresh token expired - redirecting to login')
         window.location.href = '/login'
       }
       
@@ -106,6 +122,14 @@ api.interceptors.response.use(response => response, async (error: AxiosError) =>
       isRefreshing = false
     }
   }
+  
+  // Handle 403 Forbidden - Valid token but insufficient permissions (wrong role)
+  if (error.response && error.response.status === 403) {
+    console.error('[API][403] Access forbidden - insufficient permissions')
+    // You might want to show a specific error message to the user
+    // or redirect to an unauthorized page
+  }
+  
   // Log and provide clearer info for server (5xx) errors to aid debugging
   if (error.response && error.response.status >= 500) {
     try {

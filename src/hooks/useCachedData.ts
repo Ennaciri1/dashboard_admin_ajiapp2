@@ -57,7 +57,7 @@ export function useCachedData<T>({
     }
   }, [cacheKey, cacheTime])
 
-  // Sauvegarder dans le cache
+  // Save dans le cache
   const setCachedData = useCallback((newData: T) => {
     try {
       const cacheEntry = {
@@ -111,7 +111,7 @@ export function useCachedData<T>({
     setData(null)
   }, [cacheKey])
 
-  // Charger les données au montage si autoFetch est activé
+  // Load les données au montage si autoFetch est activé
   useEffect(() => {
     if (autoFetch) {
       fetchData()

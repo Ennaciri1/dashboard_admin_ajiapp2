@@ -14,7 +14,7 @@ export default function Table<T = any>({
   data,
   keyExtractor,
   onRowClick,
-  emptyMessage = 'No donnée disponible',
+  emptyMessage = 'No donnée available',
 }: TableProps<T>) {
   // Mémoiser le rendu des headers
   const headerRow = useMemo(() => (

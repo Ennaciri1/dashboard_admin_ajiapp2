@@ -110,7 +110,7 @@ export default function MapPicker({
       return
     }
 
-    // Cancel la requête précédente si elle existe
+    // Annuler la requête précédente si elle existe
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
@@ -158,12 +158,12 @@ export default function MapPicker({
       setShowResults(true)
       
       if (!results || results.length === 0) {
-        setError('None résultat trouvé')
+        setError('Aucun résultat trouvé')
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        console.error('Error de recherche:', err)
-        setError('Error lors de la recherche')
+        console.error('Erreur de recherche:', err)
+        setError('Erreur lors de la recherche')
         setSearchResults([])
       }
     } finally {
@@ -255,7 +255,7 @@ export default function MapPicker({
           type="text"
           value={searchTerm}
           onChange={handleSearchChange}
-          placeholder="Search un lieu (ville, adresse, pays...)"
+          placeholder="Rechercher un lieu (ville, adresse, pays...)"
           className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#981B21] focus:border-transparent transition-all"
           autoComplete="off"
         />
@@ -266,7 +266,7 @@ export default function MapPicker({
         )}
       </div>
 
-      {/* Error */}
+      {/* Erreur */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm animate-fadeIn">
           {error}

@@ -1,33 +1,27 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import Login from './pages/Login'
+
+// Auth
+import { Login } from './pages/auth'
+
+// Core Pages
 import Unauthorized from './pages/Unauthorized'
 import Dashboard from './pages/Dashboard'
-import CitiesList from './pages/CitiesList'
-import CityForm from './pages/CityForm'
-import CityDetail from './pages/CityDetail'
-import LanguagesList from './pages/LanguagesList'
-import LanguageForm from './pages/LanguageForm'
-import LanguageDetail from './pages/LanguageDetail'
-import ContactsList from './pages/ContactsList'
-import ContactForm from './pages/ContactForm'
-import ContactDetail from './pages/ContactDetail'
-import HotelsList from './pages/HotelsList'
-import HotelForm from './pages/HotelForm'
-import HotelDetail from './pages/HotelDetail'
-import ActivitiesList from './pages/ActivitiesList'
-import ActivityDetail from './pages/ActivityDetail'
-import CreateActivityUser from './pages/CreateActivityUser'
-import TouristSpotsList from './pages/TouristSpotsList'
-import TouristSpotForm from './pages/TouristSpotForm'
-import TouristSpotDetail from './pages/TouristSpotDetail'
-import TranslationsList from './pages/TranslationsList'
-import TranslationsForm from './pages/TranslationsForm'
-import TranslationsDetail from './pages/TranslationsDetail'
-import ReviewsList from './pages/ReviewsList'
-import ReviewDetail from './pages/ReviewDetail'
+import Settings from './pages/Settings'
+
+// Feature Modules (Barrel Imports)
+import { CitiesList, CityForm, CityDetail } from './pages/cities'
+import { LanguagesList, LanguageForm, LanguageDetail } from './pages/languages'
+import { ContactsList, ContactForm, ContactDetail } from './pages/contacts'
+import { HotelsList, HotelForm, HotelDetail } from './pages/hotels'
+import { ActivitiesList, ActivityDetail, CreateActivityUser } from './pages/activities'
+import { TouristSpotsList, TouristSpotForm, TouristSpotDetail } from './pages/tourist-spots'
+import { TranslationsList, TranslationsForm, TranslationsDetail } from './pages/translations'
+import { ReviewsList, ReviewDetail } from './pages/reviews'
+
+// Layout & Utils
 import AdminLayout from './layout/AdminLayout'
-import ErrorBoundary from './components/ErrorBoundary'
+import { ErrorBoundary } from './components'
 import { getAccessToken, isAdmin } from './lib/auth'
 
 const RequireAuth: React.FC<{ children: React.ReactElement }>=({ children }) => {
@@ -87,6 +81,7 @@ export default function App(){
           <Route path="translations/edit/:entityType/:entityId" element={<TranslationsForm />} />
           <Route path="reviews" element={<ReviewsList />} />
           <Route path="reviews/:id" element={<ReviewDetail />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

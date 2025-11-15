@@ -60,7 +60,7 @@ export default function Dashboard() {
     return (
       <div className="max-w-7xl mx-auto">
         <Card>
-          <Loading text="Chargement du tableau de bord..." />
+          <Loading text="Loading du tableau de bord..." />
         </Card>
       </div>
     )
@@ -68,7 +68,7 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: 'Villes',
+      title: 'Cities',
       value: stats.cities.total,
       active: stats.cities.active,
       icon: (
@@ -80,7 +80,7 @@ export default function Dashboard() {
       color: 'primary',
     },
     {
-      title: 'Hôtels',
+      title: 'Hotels',
       value: stats.hotels.total,
       active: stats.hotels.active,
       icon: (
@@ -110,7 +110,7 @@ export default function Dashboard() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-gray-600">Bienvenue sur votre panneau d'administration AjiApp</p>
+        <p className="mt-2 text-gray-600">Welcome to your AjiApp Administration Panel</p>
       </div>
 
       {/* Stats Grid */}
@@ -119,21 +119,21 @@ export default function Dashboard() {
           <Link key={stat.title} to={stat.link}>
             <Card hover padding="md" className="h-full transition-all duration-200">
               <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                  <div className="mt-2 flex items-baseline gap-2">
-                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-                    <Badge variant="success" size="sm">
-                      {stat.active} actif{stat.active > 1 ? 's' : ''}
-                    </Badge>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                      <Badge variant="success" size="sm">
+                        {stat.active} active
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-                <div className={`p-3 rounded-xl bg-${stat.color}-100 text-${stat.color}-600`}>
-                  {stat.icon}
+                  <div className={`p-3 rounded-xl bg-${stat.color}-100 text-${stat.color}-600`}>
+                    {stat.icon}
           </div>
         </div>
               <div className="mt-4 flex items-center text-sm text-primary-600 font-medium">
-                <span>View tout</span>
+                <span>View all</span>
                 <svg className="ml-1 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
@@ -143,9 +143,8 @@ export default function Dashboard() {
         ))}
         </div>
         
-      {/* Quick Actions */}
       <Card>
-        <CardHeader title="Actions rapides" />
+        <CardHeader title="Quick Actions" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link
             to="/cities/new"
@@ -158,7 +157,7 @@ export default function Dashboard() {
             </div>
             <div>
               <p className="font-medium text-gray-900">New City</p>
-              <p className="text-sm text-gray-500">Add une ville</p>
+              <p className="text-sm text-gray-500">Add a city</p>
             </div>
           </Link>
 
@@ -173,7 +172,7 @@ export default function Dashboard() {
             </div>
             <div>
               <p className="font-medium text-gray-900">New Hotel</p>
-              <p className="text-sm text-gray-500">Add un hôtel</p>
+              <p className="text-sm text-gray-500">Add a hotel</p>
             </div>
           </Link>
 
@@ -188,7 +187,7 @@ export default function Dashboard() {
             </div>
             <div>
               <p className="font-medium text-gray-900">New Contact</p>
-              <p className="text-sm text-gray-500">Add un contact</p>
+              <p className="text-sm text-gray-500">Add a contact</p>
         </div>
           </Link>
 
@@ -203,13 +202,12 @@ export default function Dashboard() {
             </div>
             <div>
               <p className="font-medium text-gray-900">New Language</p>
-              <p className="text-sm text-gray-500">Add une langue</p>
+              <p className="text-sm text-gray-500">Add a language</p>
             </div>
           </Link>
         </div>
       </Card>
 
-      {/* Info Card */}
       <Card className="bg-gradient-to-r from-primary-50 to-blue-50 border-primary-200">
         <div className="flex items-start gap-4">
           <div className="p-3 bg-primary-100 rounded-xl">
@@ -218,9 +216,9 @@ export default function Dashboard() {
             </svg>
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900">Système de gestion AjiApp</h3>
+            <h3 className="text-lg font-semibold text-gray-900">AjiApp Management System</h3>
             <p className="mt-1 text-gray-600">
-              Gérez facilement vos villes, hôtels, contacts et langues depuis cette interface d'administration moderne et intuitive.
+              Easily manage your cities, hotels, contacts and languages from this modern and intuitive administration interface.
             </p>
       </div>
         </div>

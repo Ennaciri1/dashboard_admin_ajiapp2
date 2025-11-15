@@ -24,7 +24,7 @@ export type Activity = {
 export type ActivityUser = {
   id: string
   name: string
-  description: string
+  descriptionTranslations: Record<string, string>
   bannerImage?: string
   activities: Activity[]
 }

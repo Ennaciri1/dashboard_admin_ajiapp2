@@ -60,6 +60,9 @@ export interface Contact {
   nameTranslations: TranslationMap
   link: string
   icon?: string
+  phoneNumber?: string
+  email?: string
+  contactType?: string
   active: boolean
   createdAt?: string
   updatedAt?: string
@@ -104,6 +107,10 @@ export interface Hotel {
   location: Location
   images?: ImageData[]
   minPrice?: number
+  priceInfo?: {
+    amount: number
+    currency: string
+  }
   likesCount?: number
   active: boolean
   // User interaction fields (public endpoint only)
@@ -117,6 +124,8 @@ export interface Hotel {
   updatedAt?: string
   createdBy?: string
   updatedBy?: string
+  // City reference
+  city?: City
 }
 
 // Activity Types
@@ -137,7 +146,7 @@ export interface Activity {
 export interface ActivityUser {
   id: string
   name: string
-  description: string
+  descriptionTranslations: Record<string, string>
   bannerImage: string
   activities: Activity[]
 }
@@ -238,7 +247,7 @@ export interface FormField {
 // Table Types
 export interface TableColumn<T = any> {
   key: string
-  label: string
+  label: string | React.ReactNode
   sortable?: boolean
   render?: (value: any, row: T) => React.ReactNode
 }
