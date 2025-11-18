@@ -143,13 +143,27 @@ export default function HotelDetail() {
         {hotel.images && hotel.images.length > 0 && (
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Images</label>
-            <div className="grid grid-cols-3 gap-4">
-              {hotel.images.map((img, idx) => (
-                <div key={idx} className="border rounded overflow-hidden">
-                  <img src={getImageUrl(img.url)} alt={img.alt || `Hotel image ${idx + 1}`} className="w-full h-48 object-cover" />
-                  {img.alt && <p className="p-2 text-xs text-gray-600">{img.alt}</p>}
-                </div>
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {hotel.images.map((img, idx) => {
+                const altText = img.altText || (img.owner ? `Provided by ${img.owner}` : `Hotel image ${idx + 1}`)
+                return (
+                  <div key={idx} className="border rounded-lg overflow-hidden bg-gray-50 flex flex-col">
+                    <img
+                      src={getImageUrl(img.url)}
+                      alt={altText}
+                      className="w-full h-48 object-cover"
+                    />
+                    <div className="p-3 border-t border-gray-200">
+                      <p className="text-sm font-medium text-gray-900">
+                        {img.owner?.trim() || 'Owner not specified'}
+                      </p>
+                      {img.altText && (
+                        <p className="text-xs text-gray-600 mt-1">{img.altText}</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

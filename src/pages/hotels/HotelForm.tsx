@@ -113,7 +113,7 @@ export default function HotelForm(){
     try {
       const res = await uploadImage(file, 'hotels')
       const imageUrl = res.data.imageUrl
-      setImages(prev => [...prev, { url: imageUrl, owner: 'admin' }])
+      setImages(prev => [...prev, { url: imageUrl, owner: '' }])
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Failed to upload image')
     } finally {
@@ -186,6 +186,12 @@ export default function HotelForm(){
       return
     }
 
+    if (images.some(img => !img.owner?.trim())) {
+      setError('Please provide the owner/source for every uploaded image')
+      setLoading(false)
+      return
+    }
+
     try {
       const payload: any = {
         nameTranslations: name,
@@ -195,7 +201,12 @@ export default function HotelForm(){
       }
 
       if (minPrice) payload.minPrice = parseFloat(minPrice)
-      if (images.length > 0) payload.images = images
+      if (images.length > 0) {
+        payload.images = images.map(img => ({
+          ...img,
+          owner: img.owner?.trim() || ''
+        }))
+      }
       if (isEdit) payload.active = active
       
       if (isEdit && id) {
@@ -365,20 +376,10 @@ export default function HotelForm(){
                           value={img.owner ?? ''}
                           onChange={(e) => handleUpdateImageOwner(index, e.target.value)}
                           className="w-full border px-2 py-1 rounded text-sm"
+                          required
                           placeholder="Image owner/source"
                         />
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium mb-1">Alt Text</label>
-                        <input
-                          type="text"
-                          value={img.altText ?? ''}
-                          onChange={(e) => handleUpdateImageAlt(index, e.target.value)}
-                          className="w-full border px-2 py-1 rounded text-sm"
-                          placeholder="Short description (optional)"
-                        />
-                      </div>
-                      <p className="text-[11px] text-gray-500 break-all">{img.url}</p>
                       <button
                         type="button"
                         onClick={() => handleRemoveImage(index)}
